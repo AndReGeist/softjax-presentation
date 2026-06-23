@@ -193,12 +193,12 @@ class Presentation(Slide):
         self._init_canvas()
         self.title()
         self.next_slide()
-        self.intro()
-        self.next_slide()
+        #self.intro()
+        #self.next_slide()
         self.heaviside_and_bools()
-        #self.next_slide()
-        #self.comparisons_and_logic()
-        #self.next_slide()
+        self.next_slide()
+        self.comparisons_and_logic()
+        self.next_slide()
         #self.relu()
         #self.next_slide()
         #self.argmax()
@@ -291,6 +291,23 @@ class Presentation(Slide):
             .set_stroke(color=color, width=width)
         )
 
+    def _y_ticks(self, axes, tick_values=(-1, 1)):
+        """Tick marks + labels at the given y values, only if within y range."""
+        y0, y1 = axes.y_range[0], axes.y_range[1]
+        group = m.VGroup()
+        for v in tick_values:
+            if y0 < v < y1:
+                center = axes.c2p(0, float(v))
+                tick = m.Line(
+                    center + 0.13 * m.LEFT, center + 0.13 * m.RIGHT,
+                    color=m.GREY, stroke_width=2,
+                )
+                label = m.Text(
+                    str(int(v)), font_size=18, color=m.GREY
+                ).next_to(tick, m.LEFT, buff=0.08)
+                group.add(tick, label)
+        return group
+
     def _legend(self, modes=SOFT_MODES):
         # No "hard" entry: the hard reference is drawn but never labelled.
         items = m.VGroup()
@@ -350,8 +367,8 @@ class Presentation(Slide):
         heav_axes = m.Axes(
             x_range=[-1.1, 1.1, 1],
             y_range=[-0.25, 1.25, 0.5],
-            x_length=3.4,
-            y_length=2.1,
+            x_length=3.9,
+            y_length=2.5,
             axis_config=dict(color=m.GREY, stroke_width=2, include_ticks=False),
             tips=False,
         )
@@ -374,8 +391,8 @@ class Presentation(Slide):
             axes = m.Axes(
                 x_range=xr,
                 y_range=yr,
-                x_length=2.9,
-                y_length=1.6,
+                x_length=3.3,
+                y_length=1.95,
                 axis_config=dict(color=m.GREY, stroke_width=2, include_ticks=False),
                 tips=False,
             )
@@ -397,8 +414,9 @@ class Presentation(Slide):
         heav_hard = self._curve(
             heav_axes, sj.heaviside, mode="hard", color=HARD_COLOR, width=4
         )
+        heav_ticks = self._y_ticks(heav_axes)
         self.play(m.Write(formula_h))
-        self.play(m.Create(heav_axes))
+        self.play(m.Create(heav_axes), m.FadeIn(heav_ticks))
         self.play(m.Create(heav_hard))
         self.next_slide()
 
@@ -408,7 +426,7 @@ class Presentation(Slide):
             softness=tau.get_value(),
         )
         formula_s = m.MathTex(
-            r"\sigma_\tau(x)=\dfrac{1}{1+e^{-x/\tau}}", font_size=42
+            r"H_\tau(x)=\dfrac{1}{1+e^{-x/\tau}}", font_size=42
         ).move_to(formula_h)
         self.play(m.FadeIn(slider, shift=0.2 * m.UP))
         self.play(
@@ -434,9 +452,12 @@ class Presentation(Slide):
         self.next_slide()
 
         # ===== Beat 4: add sign/round/abs plots (smooth, softness=0.1) ======
+        for p in bottom_panels:
+            p["ticks"] = self._y_ticks(p["axes"])
         self.play(
             m.Create(m.VGroup(*[p["axes"] for p in bottom_panels])),
             m.FadeIn(m.VGroup(*[p["lab"] for p in bottom_panels])),
+            m.FadeIn(m.VGroup(*[p["ticks"] for p in bottom_panels])),
         )
         for p in bottom_panels:
             p["soft"]["smooth"] = self._curve(
