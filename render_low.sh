@@ -1,0 +1,1 @@
+uv run manim-slides render -ql --fps=10 presentation.py Presentation
