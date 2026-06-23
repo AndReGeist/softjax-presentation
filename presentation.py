@@ -646,6 +646,16 @@ class Presentation(Slide):
             composition.scale(max_width / composition.width)
         composition.move_to(2.3 * m.DOWN)
 
+        # Nudge the selection block to the right and frame it in a soft box.
+        selection.shift(0.4 * m.RIGHT)
+        selection_box = m.SurroundingRectangle(
+            selection,
+            buff=0.3,
+            corner_radius=0.15,
+            color=SOFT_MODES[0][1],
+            stroke_width=2.5,
+        )
+
         self.play(m.FadeOut(slider, shift=0.3 * m.DOWN))
         self.play(m.FadeOut(caption, shift=0.3 * m.DOWN))
         self.play(m.Write(logic_formulas))
@@ -656,4 +666,4 @@ class Presentation(Slide):
         self.next_slide()
 
         # Selection as an expectation over a Bernoulli choice.
-        self.play(m.Write(selection))
+        self.play(m.Write(selection), m.Create(selection_box))
