@@ -481,7 +481,7 @@ class Presentation(Slide):
         self.play(m.FadeIn(legend), *[m.Create(c) for c in new_curves], run_time=1.5)
 
     def comparisons_and_logic(self):
-        self.new_clean_slide("Comparisons")
+        self.new_clean_slide("Fuzzy logic")
         smooth_color = SOFT_MODES[0][1]
         tau = m.ValueTracker(0.01)
 
@@ -616,3 +616,44 @@ class Presentation(Slide):
             color=m.BLACK,
         ).next_to(row, m.DOWN, buff=0.6)
         self.play(m.FadeIn(caption, shift=0.2 * m.UP))
+        self.next_slide()
+
+        # ---- Beat 5: drop the slider, reveal the fuzzy-logic operators ----
+        logic_formulas = m.VGroup(
+            m.MathTex(r"\mathrm{all}(p_1,...,p_n) = \prod_i p_i", font_size=34),
+            m.MathTex(r"\mathrm{not}(p) = 1 - p", font_size=34),
+        ).arrange(m.DOWN, buff=0.4, aligned_edge=m.LEFT)
+
+        arrow = m.Arrow(
+            m.ORIGIN, 1.1 * m.RIGHT, buff=0.0, color=m.BLACK, stroke_width=4
+        )
+        op_list = m.VGroup(
+            *[m.Tex(name, font_size=34) for name in ("any", "and", "or", "xor")]
+        ).arrange(m.DOWN, buff=0.28, aligned_edge=m.LEFT)
+
+        selection = m.VGroup(
+            m.Tex("Selection = Expectation", font_size=34),
+            m.MathTex(
+                r"z_i = p_i \cdot x_i + (1 - p_i) \cdot y_i", font_size=34
+            ),
+        ).arrange(m.DOWN, buff=0.3)
+
+        composition = m.VGroup(logic_formulas, arrow, op_list, selection).arrange(
+            m.RIGHT, buff=0.6
+        )
+        max_width = m.config.frame_width - 1.0
+        if composition.width > max_width:
+            composition.scale(max_width / composition.width)
+        composition.move_to(2.3 * m.DOWN)
+
+        self.play(m.FadeOut(slider, shift=0.3 * m.DOWN))
+        self.play(m.FadeOut(caption, shift=0.3 * m.DOWN))
+        self.play(m.Write(logic_formulas))
+        self.next_slide()
+
+        # Arrow -> list of the remaining fuzzy-logic operators.
+        self.play(m.GrowArrow(arrow), m.Write(op_list))
+        self.next_slide()
+
+        # Selection as an expectation over a Bernoulli choice.
+        self.play(m.Write(selection))
