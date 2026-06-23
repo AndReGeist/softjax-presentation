@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import manim as m
 from manim_slides import Slide
 import numpy as np
+import softjax as sj
 from jaxtyping import Array, Bool, Int
 from manim_slides import Slide
 from PIL import Image
@@ -35,6 +36,16 @@ INVALID_COLOR = m.RED
 VALID_COLOR = "#28C137"
 IMAGE_COLOR = "#636463"
 X_COLOR = m.DARK_BROWN
+
+# Soft relaxation modes -> colors (used in the heaviside / boolean slide).
+# Every soft operator in SoftJAX exposes these continuity modes via `mode=`.
+HARD_COLOR = m.BLACK
+SOFT_MODES = [
+    ("smooth", m.BLUE_D),
+    ("c0", m.GREEN_D),
+    ("c1", m.ORANGE),
+    ("c2", m.MAROON_D),
+]
 
 # Manim defaults
 
@@ -212,7 +223,7 @@ class Presentation(Slide):
             "A. René Geist - June 2026, AI4PEX", slant=m.ITALIC, font_size=CONTENT_FONT_SIZE-5
         )
         authors = m.Text(
-            "Authors: Anselm Paulus*  A. René Geist*  Vít Musil  Sebastian Hoffmann  Georg Martius",
+            "Authors:   Anselm Paulus*   A. René Geist*   Vít Musil   Sebastian Hoffmann   Georg Martius",
             font_size=CONTENT_FONT_SIZE-15,
         )
         credits = m.VGroup(presenter, authors).arrange(m.DOWN, buff=0.25)
@@ -251,6 +262,197 @@ class Presentation(Slide):
     def intro(self):
         pass
 
+    # ------------------------------------------------------------------ #
+    # Unified plotting of SoftJAX elementwise operators
+    # ------------------------------------------------------------------ #
+
+    def _eval(self, fn, xs, *, mode, softness=None):
+        """Evaluate a SoftJAX operator on a grid using the library directly."""
+        if softness is None:
+            ys = fn(jnp.asarray(xs), mode=mode)
+        else:
+            ys = fn(jnp.asarray(xs), softness=float(max(softness, 1e-3)), mode=mode)
+        return np.asarray(ys)
+
+    def _curve(self, axes, fn, *, mode, color, softness=None, width=3, n=400):
+        """Single unified curve builder: SoftJAX op -> Manim VMobject.
+
+        Used for every panel and every mode (hard / smooth / c0 / c1 / c2),
+        so all functions are plotted through exactly one code path.
+        """
+        x0, x1 = axes.x_range[0], axes.x_range[1]
+        y0, y1 = axes.y_range[0], axes.y_range[1]
+        xs = np.linspace(x0, x1, n)
+        ys = np.clip(self._eval(fn, xs, mode=mode, softness=softness), y0, y1)
+        pts = [axes.c2p(float(x), float(y)) for x, y in zip(xs, ys)]
+        return (
+            m.VMobject()
+            .set_points_as_corners(pts)
+            .set_stroke(color=color, width=width)
+        )
+
+    def _legend(self, modes=SOFT_MODES):
+        # No "hard" entry: the hard reference is drawn but never labelled.
+        items = m.VGroup()
+        for name, color in modes:
+            swatch = m.Line(m.ORIGIN, 0.45 * m.RIGHT, color=color, stroke_width=4)
+            label = m.Text(name, font_size=22, color=m.BLACK)
+            items.add(m.VGroup(swatch, label).arrange(m.RIGHT, buff=0.12))
+        return items.arrange(m.RIGHT, buff=0.45)
+
+    def _slider(self, tau, vmin=0.0, vmax=1.0, length=5.5):
+        """A horizontal 'softness' slider whose handle tracks `tau`."""
+        track = m.Line(
+            length / 2 * m.LEFT, length / 2 * m.RIGHT, color=m.GREY, stroke_width=5
+        )
+        end_ticks = m.VGroup(
+            m.Line(0.12 * m.DOWN, 0.12 * m.UP, color=m.GREY, stroke_width=3).move_to(
+                track.get_start()
+            ),
+            m.Line(0.12 * m.DOWN, 0.12 * m.UP, color=m.GREY, stroke_width=3).move_to(
+                track.get_end()
+            ),
+        )
+        end_labels = m.VGroup(
+            m.Text(f"{vmin:.1f}", font_size=22, color=m.BLACK).next_to(
+                track.get_start(), m.DOWN, buff=0.15
+            ),
+            m.Text(f"{vmax:.1f}", font_size=22, color=m.BLACK).next_to(
+                track.get_end(), m.DOWN, buff=0.15
+            ),
+        )
+        name = m.Text("softness", font_size=28, color=m.BLACK).next_to(
+            track, m.LEFT, buff=0.4
+        )
+        handle = m.Dot(radius=0.13, color=m.BLACK)
+
+        def _prop():
+            return float(np.clip((tau.get_value() - vmin) / (vmax - vmin), 0.0, 1.0))
+
+        handle.add_updater(lambda d: d.move_to(track.point_from_proportion(_prop())))
+        value = m.DecimalNumber(
+            tau.get_value(), num_decimal_places=1, font_size=26, color=m.BLACK
+        )
+
+        def _update_value(d):
+            d.set_value(tau.get_value())
+            d.next_to(handle, m.UP, buff=0.18)
+
+        value.add_updater(_update_value)
+        return m.VGroup(track, end_ticks, end_labels, name, handle, value)
+
     def heaviside_and_bools(self):
-        pass
-    
+        self.new_clean_slide("Softening")
+        tau = m.ValueTracker(0.1)
+        smooth_color = SOFT_MODES[0][1]
+
+        # ---- Top row: heaviside formula (left) + heaviside plot (right) ----
+        heav_axes = m.Axes(
+            x_range=[-1.1, 1.1, 1],
+            y_range=[-0.25, 1.25, 0.5],
+            x_length=3.4,
+            y_length=2.1,
+            axis_config=dict(color=m.GREY, stroke_width=2, include_ticks=False),
+            tips=False,
+        )
+        formula_h = m.MathTex(
+            r"H(x)=\begin{cases}0 & x<0\\[2pt] 0.5 & x=0\\[2pt] 1 & x>0\end{cases}",
+            font_size=38,
+        )
+        top = m.VGroup(formula_h, heav_axes).arrange(m.RIGHT, buff=1.3).to_edge(
+            m.UP, buff=1.35
+        )
+
+        # ---- Bottom row: sign / round / abs plots --------------------------
+        bottom_specs = [
+            (sj.sign, "sign", [-1.1, 1.1, 1], [-1.1, 1.1, 1]),
+            (sj.round, "round", [-1.1, 1.1, 1], [-1.1, 1.1, 1]),
+            (sj.abs, "abs", [-1.1, 1.1, 1], [-0.25, 1.1, 1]),
+        ]
+        bottom_panels = []
+        for fn, name, xr, yr in bottom_specs:
+            axes = m.Axes(
+                x_range=xr,
+                y_range=yr,
+                x_length=2.9,
+                y_length=1.6,
+                axis_config=dict(color=m.GREY, stroke_width=2, include_ticks=False),
+                tips=False,
+            )
+            bottom_panels.append(dict(fn=fn, name=name, axes=axes, soft={}))
+        bottom = (
+            m.VGroup(*[p["axes"] for p in bottom_panels])
+            .arrange(m.RIGHT, buff=0.7)
+            .next_to(top, m.DOWN, buff=0.85)
+        )
+        for p in bottom_panels:
+            p["lab"] = m.Text(p["name"], font_size=26, color=m.BLACK).next_to(
+                p["axes"], m.UP, buff=0.1
+            )
+
+        legend = self._legend().next_to(bottom, m.DOWN, buff=0.3)
+        slider = self._slider(tau).to_edge(m.DOWN, buff=0.45)
+
+        # ================= Beat 1: heaviside formula + hard plot ============
+        heav_hard = self._curve(
+            heav_axes, sj.heaviside, mode="hard", color=HARD_COLOR, width=4
+        )
+        self.play(m.Write(formula_h))
+        self.play(m.Create(heav_axes))
+        self.play(m.Create(heav_hard))
+        self.next_slide()
+
+        # ===== Beat 2: slider + smooth curve + swap to sigmoid formula ======
+        heav_smooth = self._curve(
+            heav_axes, sj.heaviside, mode="smooth", color=smooth_color,
+            softness=tau.get_value(),
+        )
+        formula_s = m.MathTex(
+            r"\sigma_\tau(x)=\dfrac{1}{1+e^{-x/\tau}}", font_size=42
+        ).move_to(formula_h)
+        self.play(m.FadeIn(slider, shift=0.2 * m.UP))
+        self.play(
+            m.Create(heav_smooth),
+            m.ReplacementTransform(formula_h, formula_s),
+        )
+        self.next_slide()
+
+        # ===== Beat 3: animate softness 0.1 -> 1.0 -> 0.0 -> 0.1 ============
+        def _retrace(mobj):
+            mobj.become(
+                self._curve(
+                    heav_axes, sj.heaviside, mode="smooth", color=smooth_color,
+                    softness=tau.get_value(),
+                )
+            )
+
+        heav_smooth.add_updater(_retrace)
+        self.play(tau.animate.set_value(1.0), run_time=2.5, rate_func=m.linear)
+        self.play(tau.animate.set_value(0.04), run_time=7.0, rate_func=m.linear)
+        self.play(tau.animate.set_value(0.1), run_time=2.5, rate_func=m.linear)
+        heav_smooth.clear_updaters()
+        self.next_slide()
+
+        # ===== Beat 4: add sign/round/abs plots (smooth, softness=0.1) ======
+        self.play(
+            m.Create(m.VGroup(*[p["axes"] for p in bottom_panels])),
+            m.FadeIn(m.VGroup(*[p["lab"] for p in bottom_panels])),
+        )
+        for p in bottom_panels:
+            p["soft"]["smooth"] = self._curve(
+                p["axes"], p["fn"], mode="smooth", color=smooth_color,
+                softness=0.1,
+            )
+        self.play(*[m.Create(p["soft"]["smooth"]) for p in bottom_panels])
+        self.next_slide()
+
+        # ===== Beat 5: add c0 / c1 / c2 to sign/round/abs + legend ==========
+        new_curves = []
+        for p in bottom_panels:
+            for mode, color in SOFT_MODES[1:]:
+                cv = self._curve(
+                    p["axes"], p["fn"], mode=mode, color=color, softness=0.1
+                )
+                p["soft"][mode] = cv
+                new_curves.append(cv)
+        self.play(m.FadeIn(legend), *[m.Create(c) for c in new_curves], run_time=1.5)
