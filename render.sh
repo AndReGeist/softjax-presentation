@@ -1,0 +1,1 @@
+manim -ql --fps=10 presentation.py Presentation

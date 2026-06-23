@@ -1,0 +1,22 @@
+[dependency-groups]
+dev = [
+  # Includes the Qt GUI for debugging presentations
+  "manim-slides[manim,pyside6]==5.5.1",
+]
+
+[project]
+dependencies = [
+  "choreographer<1",
+  "kaleido==0.2.1",
+  # ManimCE version auto-defined from Manim Slides
+  "manim-slides[manim]==5.5.1",
+  "pandas>=2.2.3",
+  "pillow>=11.1.0",
+  "plotly>=5.24.1,<6",
+  "scipy>=1.15.1",
+  "softjax==0.1.1"
+]
+description = "Add your description here"
+name = "name-of-your-presentation"
+requires-python = ">=3.12"
+version = "0.1.0"
