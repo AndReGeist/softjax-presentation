@@ -40,6 +40,8 @@ X_COLOR = m.DARK_BROWN
 # Soft relaxation modes -> colors (used in the heaviside / boolean slide).
 # Every soft operator in SoftJAX exposes these continuity modes via `mode=`.
 HARD_COLOR = m.BLACK
+# Light grey background for `Code` mobjects (readable on the white slide).
+CODE_BG_COLOR = "#E8E8E8"
 SOFT_MODES = [
     ("smooth", m.BLUE_D),
     ("c0", m.GREEN_D),
@@ -377,7 +379,7 @@ class Presentation(Slide):
             font_size=38,
         )
         top = m.VGroup(formula_h, heav_axes).arrange(m.RIGHT, buff=1.3).to_edge(
-            m.UP, buff=1.35
+            m.UP, buff=1.0
         )
 
         # ---- Bottom row: sign / round / abs plots --------------------------
@@ -400,15 +402,15 @@ class Presentation(Slide):
         bottom = (
             m.VGroup(*[p["axes"] for p in bottom_panels])
             .arrange(m.RIGHT, buff=0.7)
-            .next_to(top, m.DOWN, buff=0.85)
+            .next_to(top, m.DOWN, buff=0.55)
         )
         for p in bottom_panels:
             p["lab"] = m.Text(p["name"], font_size=26, color=m.BLACK).next_to(
                 p["axes"], m.UP, buff=0.1
             )
 
-        legend = self._legend().next_to(bottom, m.DOWN, buff=0.3)
-        slider = self._slider(tau).to_edge(m.DOWN, buff=0.45)
+        legend = self._legend().next_to(bottom, m.DOWN, buff=0.45)
+        slider = self._slider(tau).to_edge(m.DOWN, buff=0.35)
 
         # ================= Beat 1: heaviside formula + hard plot ============
         heav_hard = self._curve(
@@ -477,3 +479,140 @@ class Presentation(Slide):
                 p["soft"][mode] = cv
                 new_curves.append(cv)
         self.play(m.FadeIn(legend), *[m.Create(c) for c in new_curves], run_time=1.5)
+
+    def comparisons_and_logic(self):
+        self.new_clean_slide("Comparisons")
+        smooth_color = SOFT_MODES[0][1]
+        tau = m.ValueTracker(0.01)
+
+        # Binary comparisons f(x, y): we fix the threshold y and sweep x, so a
+        # single 1-D curve goes through the same unified `_curve` code path.
+        y_val = 1.0
+
+        def fix_y(fn):
+            return lambda xs, **kw: fn(xs, y_val, **kw)
+
+        specs = [
+            (sj.greater, "greater"),
+            (sj.less_equal, "less_equal"),
+            (sj.isclose, "isclose"),
+        ]
+
+        panels = []
+        for fn, name in specs:
+            axes = m.Axes(
+                x_range=[0.0, 2.0, 1.0],
+                y_range=[-0.25, 1.25, 1.0],
+                x_length=3.6,
+                y_length=2.3,
+                axis_config=dict(color=m.GREY, stroke_width=2, include_ticks=False),
+                tips=False,
+            )
+            panels.append(dict(fn=fn, name=name, axes=axes))
+
+        row = (
+            m.VGroup(*[p["axes"] for p in panels])
+            .arrange(m.RIGHT, buff=0.9)
+            .move_to(0.5 * m.UP)
+        )
+
+        for p in panels:
+            axes = p["axes"]
+            # Function-name label above each plot via the Code class.
+            p["code"] = (
+                m.Code(
+                    code_string=f"sj.{p['name']}(x, y)",
+                    language="python",
+                    add_line_numbers=False,
+                    formatter_style="default",
+                    background_config=dict(fill_color=CODE_BG_COLOR, stroke_width=0),
+                )
+                .scale(0.55)
+                .next_to(axes, m.UP, buff=0.3)
+            )
+            # "x" axis label at the right tip of the x-axis.
+            p["xlab"] = m.MathTex("x", font_size=32, color=m.BLACK).next_to(
+                axes.x_axis.get_end(), m.RIGHT, buff=0.15
+            )
+            # "y" tick on the x-axis marking the threshold position.
+            center = axes.c2p(y_val, 0)
+            ytick = m.Line(
+                center + 0.1 * m.DOWN, center + 0.1 * m.UP,
+                color=m.GREY, stroke_width=2,
+            )
+            ylabel = m.MathTex("y", font_size=30, color=m.BLACK).next_to(
+                ytick, m.DOWN, buff=0.12
+            )
+            p["ymark"] = m.VGroup(ytick, ylabel)
+            # Dashed grey reference line at the threshold x = y.
+            p["vline"] = m.DashedLine(
+                axes.c2p(y_val, 0.0),
+                axes.c2p(y_val, 1.2),
+                color=m.GREY,
+                stroke_width=2,
+                dash_length=0.09,
+            )
+            # y-axis ticks (here only "1" lies within the [-0.25, 1.25] range).
+            p["yticks"] = self._y_ticks(axes)
+
+        # The same softness slider as slide 1, shown directly (no fade) and
+        # starting at softness = 0.001 (nearly a hard step).
+        slider = self._slider(tau).to_edge(m.DOWN, buff=0.4)
+        self.add(slider)
+
+        # ---- Beat 1: code labels, axes, and annotations ----
+        self.play(
+            m.LaggedStart(
+                *[m.FadeIn(p["code"], shift=0.2 * m.DOWN) for p in panels],
+                lag_ratio=0.25,
+            )
+        )
+        self.play(
+            m.Create(m.VGroup(*[p["axes"] for p in panels])),
+            m.FadeIn(m.VGroup(*[p["xlab"] for p in panels])),
+            m.FadeIn(m.VGroup(*[p["ymark"] for p in panels])),
+            m.FadeIn(m.VGroup(*[p["yticks"] for p in panels])),
+            m.FadeIn(m.VGroup(*[p["vline"] for p in panels])),
+        )
+        self.next_slide()
+
+        # ---- Beat 2: draw smooth curves one panel at a time, left -> right ----
+        for p in panels:
+            p["curve"] = self._curve(
+                p["axes"], fix_y(p["fn"]), mode="smooth",
+                color=smooth_color, softness=tau.get_value(),
+            )
+        self.play(
+            m.Succession(
+                *[m.Create(p["curve"], rate_func=m.linear) for p in panels],
+            ),
+            run_time=3.0,
+        )
+        self.next_slide()
+
+        # ---- Beat 3: soften — slide the handle to 0.5; curves track live ----
+        def make_retrace(panel):
+            def _retrace(mob):
+                mob.become(
+                    self._curve(
+                        panel["axes"], fix_y(panel["fn"]), mode="smooth",
+                        color=smooth_color, softness=tau.get_value(),
+                    )
+                )
+            return _retrace
+
+        for p in panels:
+            p["curve"].add_updater(make_retrace(p))
+        self.play(tau.animate.set_value(0.1), run_time=2.5, rate_func=m.linear)
+        for p in panels:
+            p["curve"].clear_updaters()
+        self.next_slide()
+
+        # ---- Beat 4: caption describing the smooth curve as a CDF ----
+        caption = m.MarkupText(
+            '<b>CDF</b> defining the probability that a Boolean '
+            "operator equates to true.",
+            font_size=30,
+            color=m.BLACK,
+        ).next_to(row, m.DOWN, buff=0.6)
+        self.play(m.FadeIn(caption, shift=0.2 * m.UP))

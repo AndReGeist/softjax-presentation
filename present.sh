@@ -1,1 +1,1 @@
-uv run manim-slides
+uv run manim-slides Presentation
