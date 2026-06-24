@@ -197,15 +197,17 @@ class Presentation(Slide):
         self.next_slide()
         #self.intro()
         #self.next_slide()
-        self.heaviside_and_bools()
-        self.next_slide()
-        self.comparisons_and_logic()
-        self.next_slide()
-        self.axiswise()
-        self.next_slide()
-        self.softsort()
-        self.next_slide()
-        self.library_overview()
+        #self.heaviside_and_bools()
+        #self.next_slide()
+        #self.comparisons_and_logic()
+        #self.next_slide()
+        #self.axiswise()
+        #self.next_slide()
+        #self.softsort()
+        #self.next_slide()
+        #self.library_overview()
+        #self.next_slide()
+        self.sorting_benchmark()
         self.next_slide()
         #self.relu()
         #self.next_slide()
@@ -1020,3 +1022,20 @@ class Presentation(Slide):
         )
         self.play(m.FadeIn(elem_note, shift=0.15 * m.UP))
         self.play(m.GrowArrow(elem_arrow))
+
+    def sorting_benchmark(self):
+        """Untitled slide: bold 'Sorting' heading above the sort benchmark."""
+        self.new_clean_slide("")
+
+        heading = m.Text("Sorting", weight=m.BOLD, font_size=24, color=m.BLACK)
+        plot = m.ImageMobject("images/benchmark_sort_smooth.png")
+
+        group = m.Group(heading, plot).arrange(m.DOWN, buff=0.2)
+        max_h = m.config.frame_height - 0.5
+        max_w = m.config.frame_width - 0.5
+        # Scale up (or down) to fill the frame as much as possible.
+        group.scale(min(max_h / group.height, max_w / group.width))
+        group.move_to(0.35 * m.DOWN)
+
+        self.play(m.FadeIn(heading, shift=0.2 * m.DOWN))
+        self.play(m.FadeIn(plot, shift=0.2 * m.UP))
