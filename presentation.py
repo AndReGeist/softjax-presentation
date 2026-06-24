@@ -1039,7 +1039,7 @@ class Presentation(ThreeDSlide):
         the x-z plane; it then fades out as the 3D surface f(x,y) = y*relu_st(x)
         and its normalized jax.grad field fade in and the camera pans to an
         isometric view."""
-        self.new_clean_slide("STE")
+        self.new_clean_slide("")
 
         # Start looking along the y-axis (x to the right, z up) so the surface
         # reads like a flat 2D plot of relu(x). The slide title / number live in
@@ -1048,11 +1048,17 @@ class Presentation(ThreeDSlide):
         self.set_camera_orientation(phi=90 * m.DEGREES, theta=-90 * m.DEGREES)
         self.add_fixed_in_frame_mobjects(self.slide_title, self.slide_number)
 
+        # Section header in the upper-left corner (replaces the slide title).
+        header = m.Text(
+            "Reducing gradient biases via STE",
+            weight=m.BOLD, font_size=32, color=m.BLACK,
+        ).to_corner(m.UL, buff=0.4)
+
         # ---------------- Upper-left: the STE trick box ------------------
         formula = m.MathTex(
             r"f_{\text{STE}}(x) = \operatorname{sg}(f(x)) + f_{\tau}(x)"
             r" - \operatorname{sg}(f_{\tau}(x))",
-            font_size=28,
+            font_size=30,
         )
         formula_box = m.SurroundingRectangle(
             formula, buff=0.3, corner_radius=0.15,
@@ -1067,13 +1073,13 @@ class Presentation(ThreeDSlide):
         )
         trick_tag.next_to(boxed, m.UP, buff=0.1).align_to(boxed, m.LEFT)
         trick = m.VGroup(trick_tag, boxed)
-        trick.to_corner(m.UL, buff=0.4).shift(1.0 * m.DOWN)
+        trick.to_corner(m.UL, buff=0.4).shift(1.3 * m.DOWN + 0.6 * m.RIGHT)
 
         # ---------------- Below it: the STE pitfall box ------------------
         pitfall_formula = m.MathTex(
             r"\left(f \cdot g\right)_{\mathrm{STE}}"
             r" \neq f_{\mathrm{STE}} \cdot g_{\mathrm{STE}}",
-            font_size=28,
+            font_size=30,
         )
         pitfall_box = m.SurroundingRectangle(
             pitfall_formula, buff=0.3, corner_radius=0.15,
@@ -1130,7 +1136,7 @@ class Presentation(ThreeDSlide):
             color=m.GREY, stroke_width=0.0,
             fill_color=CODE_BG_COLOR, fill_opacity=1.0,
         )
-        code_box = m.VGroup(code_bg, code_text).move_to([3.0, 3.0, 0])
+        code_box = m.VGroup(code_bg, code_text).move_to([3.0, 2.4, 0])
         # Legend describing the in-plane gradient arrows: to the right of the
         # plot, slightly below the x-axis.
         grad_legend = m.VGroup(
@@ -1139,14 +1145,14 @@ class Presentation(ThreeDSlide):
                 stroke_width=3, max_tip_length_to_length_ratio=0.4,
             ),
             m.Text("gradients", font="Monospace", font_size=22, color=m.BLACK),
-        ).arrange(m.RIGHT, buff=0.18).move_to([5.0, -0.7, 0])
+        ).arrange(m.RIGHT, buff=0.18).move_to([1.3, -2.8, 0])
 
         self.add_fixed_in_frame_mobjects(
-            trick, pitfall_note, legend_2d, label_relu_st, label_saddle,
+            header, trick, pitfall_note, legend_2d, label_relu_st, label_saddle,
             code_box, grad_legend,
         )
         self.remove(
-            trick, pitfall_note, legend_2d, label_relu_st, label_saddle,
+            header, trick, pitfall_note, legend_2d, label_relu_st, label_saddle,
             code_box, grad_legend,
         )
 
@@ -1207,7 +1213,7 @@ class Presentation(ThreeDSlide):
             # coolwarm: negative -> red, zero -> grey, positive -> blue.
             surf.set_fill_by_value(
                 axes=axes,
-                colorscale=[(m.RED, -zmax), (m.GREY_A, 0.0), (m.BLUE, zmax)],
+                colorscale=[(m.RED, -zmax), (m.GREY_B, 0.0), (m.BLUE, zmax)],
                 axis=2,
             )
             return surf
@@ -1255,6 +1261,7 @@ class Presentation(ThreeDSlide):
 
         # Beat 1: front (2D) view — relu hard vs smooth as line plots.
         self.play(
+            m.FadeIn(header),
             m.FadeIn(trick),
             m.FadeIn(legend_2d),
             m.Create(axes),
