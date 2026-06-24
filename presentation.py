@@ -1471,9 +1471,19 @@ class Presentation(ThreeDSlide):
             m.DOWN, buff=0.55, aligned_edge=m.LEFT)
         if right_panel.width > 6.6:
             right_panel.scale(6.6 / right_panel.width)
-        right_panel.to_edge(m.RIGHT, buff=0.5).shift(0.3 * m.UP)
+        right_panel.to_edge(m.RIGHT, buff=0.5).shift(0.6 * m.UP)
         self.add_fixed_in_frame_mobjects(right_panel)
         self.remove(right_panel)
+
+        # Closing caption (revealed with the final beat), under the area code.
+        closest_block = m.VGroup(
+            m.Text("Determine closest triangle", weight=m.BOLD,
+                   font_size=26, color=m.BLACK),
+            m.Text("e.g. using argmax, sort, top_k", font_size=22, color=m.BLACK),
+        ).arrange(m.DOWN, buff=0.18, aligned_edge=m.LEFT)
+        closest_block.next_to(right_panel, m.DOWN, buff=0.5).align_to(right_panel, m.LEFT)
+        self.add_fixed_in_frame_mobjects(closest_block)
+        self.remove(closest_block)
 
         # ------------------------------ Beats -----------------------------
         # Beat 1: the camera plane (left) and the 3D triangle (right).
@@ -1582,6 +1592,54 @@ class Presentation(ThreeDSlide):
         self.remove(static_areas, static_pt)
         self.add(dyn_areas, dyn_point2)
         self.play(tracker.animate.set_value(1.0), run_time=7, rate_func=m.linear)
+        self.next_slide()
+
+        # Beat 6: fade out both triangles; cast a single ray orthogonally from
+        # one pixel into the scene and string three candidate triangles along it
+        # -- the pixel is covered by whichever lies closest.
+        x_hat = np.array([1.0, 0.0, 0.0])          # plane normal (toward camera)
+        pixel = np.array([0.3, 0.2])               # a pixel on the image plane
+        ray_start = on_plane(pixel)
+        ray_line = m.DashedLine(
+            ray_start, ray_start + 4.6 * x_hat,
+            color=m.GREY, stroke_width=2.5, dash_length=0.15,
+        )
+        pixel_dot = m.Dot3D(ray_start, radius=0.06, color=m.BLACK)
+
+        # Three distinct, tilted triangles placed at increasing depth on the ray.
+        tri_specs = [
+            (1.5, m.BLUE_D, [np.array([0.1, -0.5, 0.4]),
+                             np.array([-0.2, 0.6, -0.1]),
+                             np.array([0.3, 0.1, -0.6])]),
+            (2.7, m.GREEN_D, [np.array([-0.3, 0.5, 0.3]),
+                              np.array([0.4, -0.4, 0.2]),
+                              np.array([0.0, -0.2, -0.7])]),
+            (3.9, m.ORANGE, [np.array([0.2, 0.6, -0.2]),
+                             np.array([-0.4, -0.3, 0.4]),
+                             np.array([0.3, -0.5, -0.3])]),
+        ]
+        cand_tris = m.VGroup()
+        for dist, color, offs in tri_specs:
+            center = ray_start + dist * x_hat
+            cand_tris.add(m.Polygon(
+                *[center + o for o in offs],
+                stroke_color=color, stroke_width=2.5,
+                fill_color=color, fill_opacity=0.3,
+            ))
+
+        # Drop the area updaters so the fade-out takes effect.
+        dyn_areas.clear_updaters()
+        dyn_point2.clear_updaters()
+        self.play(
+            m.FadeOut(tri3d), m.FadeOut(dots3d),
+            m.FadeOut(tri2d), m.FadeOut(dots2d), m.FadeOut(proj_rays),
+            m.FadeOut(dyn_areas), m.FadeOut(dyn_point2),
+        )
+        self.play(m.FadeIn(pixel_dot), m.Create(ray_line))
+        self.play(
+            m.FadeIn(cand_tris, lag_ratio=0.3),
+            m.FadeIn(closest_block),
+        )
 
     def thanks(self):
         """Closing slide: a centred thank-you above a closing image."""
