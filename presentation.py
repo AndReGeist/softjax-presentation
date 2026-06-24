@@ -207,8 +207,8 @@ class Presentation(ThreeDSlide):
         #self.next_slide()
         #self.library_overview()
         #self.next_slide()
-        self.sorting_benchmark()
-        self.next_slide()
+        #self.sorting_benchmark()
+        #self.next_slide()
         self.straight_through()
         self.next_slide()
 
@@ -1034,16 +1034,18 @@ class Presentation(ThreeDSlide):
         self.play(m.FadeIn(plot, shift=0.2 * m.UP))
 
     def straight_through(self):
-        """Straight-through estimation: the trick (left) + a plot (right) shown
-        top-down as the 2D hard relu, then panned to isometric and swapped for
-        the 3D surface f(x,y) = y * relu_st(x). Both carry their normalized
-        jax.grad field as black arrows in the X-Y plane."""
+        """Straight-through estimation: the trick (left) + a plot (right). The
+        2D (front) view shows relu(x) for hard and smooth modes as line plots in
+        the x-z plane; it then fades out as the 3D surface f(x,y) = y*relu_st(x)
+        and its normalized jax.grad field fade in and the camera pans to an
+        isometric view."""
         self.new_clean_slide("Straight-through estimation")
 
-        # Start looking straight down the z-axis so the surface reads like a 2D
-        # heat map. The slide title / number live in the canvas; pin them (and
-        # the left-hand text) to the frame so the camera pan never tilts them.
-        self.set_camera_orientation(phi=0, theta=-90 * m.DEGREES)
+        # Start looking along the y-axis (x to the right, z up) so the surface
+        # reads like a flat 2D plot of relu(x). The slide title / number live in
+        # the canvas; pin them (and the left-hand text) to the frame so the
+        # camera pan never tilts them.
+        self.set_camera_orientation(phi=90 * m.DEGREES, theta=-90 * m.DEGREES)
         self.add_fixed_in_frame_mobjects(self.slide_title, self.slide_number)
 
         # ---------------- Upper-left: the STE trick box ------------------
@@ -1065,11 +1067,32 @@ class Presentation(ThreeDSlide):
         )
         trick_tag.next_to(boxed, m.UP, buff=0.1).align_to(boxed, m.LEFT)
         trick = m.VGroup(trick_tag, boxed)
-        # Tuck into the upper-left corner, clear of the slide heading.
         trick.to_corner(m.UL, buff=0.4).shift(1.0 * m.DOWN)
 
-        plot_label = m.Text(
-            'sj.relu(x, mode="hard")',
+        # 2D-view legend (hard vs smooth relu) and the 3D-view label + the
+        # gradient-arrow legend. All pinned to the frame.
+        def swatch(color):
+            return m.Line(m.ORIGIN, 0.5 * m.RIGHT, color=color, stroke_width=4)
+
+        legend_2d = m.VGroup(
+            m.VGroup(
+                swatch(HARD_COLOR),
+                m.Text('sj.relu(x, mode="hard")', font="Monospace",
+                       font_size=20, color=m.BLACK),
+            ).arrange(m.RIGHT, buff=0.15),
+            m.VGroup(
+                swatch(SOFT_MODES[0][1]),
+                m.Text('sj.relu(x, mode="smooth")', font="Monospace",
+                       font_size=20, color=m.BLACK),
+            ).arrange(m.RIGHT, buff=0.15),
+        ).arrange(m.DOWN, buff=0.18, aligned_edge=m.LEFT).move_to([3.0, 2.6, 0])
+
+        label_relu_st = m.Text(
+            'sj.st(sj.relu)(x)',
+            font="Monospace", font_size=24, color=m.BLACK,
+        ).move_to([2.9, 2.7, 0])
+        label_saddle = m.Text(
+            'y * sj.st(sj.relu)(x)',
             font="Monospace", font_size=24, color=m.BLACK,
         ).move_to([2.9, 2.7, 0])
         # Legend describing the in-plane gradient arrows.
@@ -1078,11 +1101,13 @@ class Presentation(ThreeDSlide):
                 m.ORIGIN, 0.55 * m.RIGHT, color=m.BLACK, buff=0.0,
                 stroke_width=3, max_tip_length_to_length_ratio=0.4,
             ),
-            m.Text("jax.grad(f)", font="Monospace", font_size=22, color=m.BLACK),
+            m.Text("gradients", font="Monospace", font_size=22, color=m.BLACK),
         ).arrange(m.RIGHT, buff=0.18).move_to([2.9, -2.7, 0])
 
-        self.add_fixed_in_frame_mobjects(trick, plot_label, grad_legend)
-        self.remove(trick, plot_label, grad_legend)
+        self.add_fixed_in_frame_mobjects(
+            trick, legend_2d, label_relu_st, label_saddle, grad_legend
+        )
+        self.remove(trick, legend_2d, label_relu_st, label_saddle, grad_legend)
 
         # ---------------------- Right: the 3D surface --------------------
         axes = m.ThreeDAxes(
@@ -1092,16 +1117,44 @@ class Presentation(ThreeDSlide):
             tips=False,
         ).shift(2.6 * m.RIGHT)
 
-        # The two functions: the 2D (top-down) view shows the plain hard relu;
-        # the 3D (isometric) view shows y * relu_st(x). Both evaluated directly
-        # through softjax.
-        def relu_z(u, v):
-            return float(sj.relu(jnp.asarray(u, dtype=jnp.float32), mode="hard"))
+        # Faint reference grid on the z = 0 floor, to read the 3D surface
+        # against (revealed with the isometric/3D view).
+        floor_grid = m.VGroup()
+        for gx in np.linspace(-2, 2, 9):
+            floor_grid.add(m.Line(axes.c2p(gx, -2, 0), axes.c2p(gx, 2, 0)))
+        for gy in np.linspace(-2, 2, 9):
+            floor_grid.add(m.Line(axes.c2p(-2, gy, 0), axes.c2p(2, gy, 0)))
+        floor_grid.set_stroke(color=m.GREY_B, width=1, opacity=0.5)
+
+        # 2D-view content: relu(x) for hard and smooth modes as line plots in
+        # the x-z plane (y = 0), evaluated directly through softjax.
+        def relu_line(mode, color, softness=None):
+            xs = np.linspace(-2, 2, 200)
+            if softness is None:
+                zs = np.asarray(sj.relu(jnp.asarray(xs), mode=mode))
+            else:
+                zs = np.asarray(sj.relu(jnp.asarray(xs), mode=mode, softness=softness))
+            pts = [axes.c2p(float(x), 0.0, float(z)) for x, z in zip(xs, zs)]
+            return (
+                m.VMobject()
+                .set_points_as_corners(pts)
+                .set_stroke(color=color, width=6)
+            )
+
+        relu_smooth_line = relu_line("smooth", SOFT_MODES[0][1], softness=0.5)
+        relu_hard_line = relu_line("hard", HARD_COLOR)
+        lines_2d = m.VGroup(relu_smooth_line, relu_hard_line)
+
+        # 3D-view content. First surface: f = relu_st(x) (a ramp, constant in
+        # y). Second surface: f = y * relu_st(x). Each carries its own
+        # normalized jax.grad field, drawn as black in-plane arrows.
+        def relu_st_z(u, v):
+            return float(
+                sj.relu_st(jnp.asarray(u, dtype=jnp.float32))
+            )
 
         def saddle_z(u, v):
-            return float(v) * float(
-                sj.relu_st(jnp.asarray(u, dtype=jnp.float32), mode="hard")
-            )
+            return float(v) * relu_st_z(u, v)
 
         def make_surface(zfun, zmax):
             surf = m.Surface(
@@ -1118,10 +1171,8 @@ class Presentation(ThreeDSlide):
             )
             return surf
 
-        # jax.grad of each function, sampled on a grid and drawn as black,
-        # unit-length (normalized) arrows lying flat (z = 0) in the X-Y plane.
-        relu_grad = jax.grad(lambda p: sj.relu(p[0], mode="hard"))
-        saddle_grad = jax.grad(lambda p: p[1] * sj.relu_st(p[0], mode="hard"))
+        relu_st_grad = jax.grad(lambda p: sj.relu_st(p[0]))
+        saddle_grad = jax.grad(lambda p: p[1] * sj.relu_st(p[0]))
 
         def make_grad_field(grad_fn, arrow_len=0.45):
             arrows = m.VGroup()
@@ -1129,7 +1180,7 @@ class Presentation(ThreeDSlide):
                 for y in np.linspace(-1.5, 1.5, 5):
                     g = np.asarray(grad_fn(jnp.asarray([x, y], dtype=jnp.float32)))
                     mag = float((g[0] ** 2 + g[1] ** 2) ** 0.5)
-                    if mag < 1e-3:
+                    if mag < 1e-10:
                         continue
                     ux, uy = float(g[0]) / mag, float(g[1]) / mag
                     start = axes.c2p(x, y, 0.0)
@@ -1143,36 +1194,41 @@ class Presentation(ThreeDSlide):
                     )
             return arrows
 
-        surface = make_surface(relu_z, 2.0)
-        grad_field = make_grad_field(relu_grad)
+        relu_st_surface = make_surface(relu_st_z, 2.0)
+        relu_st_field = make_grad_field(relu_st_grad)
+        saddle_surface = make_surface(saddle_z, 2.0)
+        saddle_field = make_grad_field(saddle_grad)
 
-        # Beat 1: top-down reveal of the 2D hard-relu plot.
+        # Beat 1: front (2D) view — relu hard vs smooth as line plots.
         self.play(
             m.FadeIn(trick),
-            m.FadeIn(plot_label),
-            m.FadeIn(grad_legend),
+            m.FadeIn(legend_2d),
             m.Create(axes),
         )
-        self.play(m.FadeIn(surface), m.FadeIn(grad_field))
+        self.play(m.Create(relu_smooth_line), m.Create(relu_hard_line))
         self.next_slide()
 
-        # Beat 2: pan to an isometric viewpoint.
-        self.move_camera(phi=65 * m.DEGREES, theta=-50 * m.DEGREES, run_time=2.0)
+        # Beat 2: fade the 2D lines out and the relu_st(x) surface + gradient
+        # arrows in, while panning from the front view to the isometric view.
+        self.move_camera(
+            phi=70 * m.DEGREES, theta=-60 * m.DEGREES, run_time=2.0,
+            added_anims=[
+                m.FadeOut(lines_2d),
+                m.FadeOut(legend_2d),
+                m.FadeIn(relu_st_surface),
+                m.FadeIn(relu_st_field),
+                m.FadeIn(floor_grid),
+                m.FadeIn(label_relu_st),
+                m.FadeIn(grad_legend),
+            ],
+        )
         self.next_slide()
 
-        # Beat 3: now in 3D, swap in f(x,y) = y * relu_st(x) with its own
-        # (normalized) jax.grad field.
-        saddle = make_surface(saddle_z, 4.0)
-        saddle_field = make_grad_field(saddle_grad)
-        new_label = m.Text(
-            'f(x,y) = y * sj.relu_st(x, mode="hard")',
-            font="Monospace", font_size=24, color=m.BLACK,
-        ).move_to([2.9, 2.7, 0])
-        self.add_fixed_in_frame_mobjects(new_label)
-        self.remove(new_label)
+        # Beat 3: swap relu_st(x) for the full y * relu_st(x) surface
+        # and its (normalized) gradient field.
         self.play(
-            m.ReplacementTransform(surface, saddle),
-            m.ReplacementTransform(grad_field, saddle_field),
-            m.FadeOut(plot_label),
-            m.FadeIn(new_label),
+            m.ReplacementTransform(relu_st_surface, saddle_surface),
+            m.ReplacementTransform(relu_st_field, saddle_field),
+            m.FadeOut(label_relu_st),
+            m.FadeIn(label_saddle),
         )
