@@ -1472,8 +1472,11 @@ class Presentation(ThreeDSlide):
         if right_panel.width > 6.6:
             right_panel.scale(6.6 / right_panel.width)
         right_panel.to_edge(m.RIGHT, buff=0.5).shift(0.6 * m.UP)
-        self.add_fixed_in_frame_mobjects(right_panel)
-        self.remove(right_panel)
+        # Fix the parts to the frame individually so they can be revealed on
+        # different beats: title + distance with the line animation, area with
+        # the signed-area animation.
+        self.add_fixed_in_frame_mobjects(panel_title, dist_section, area_section)
+        self.remove(panel_title, dist_section, area_section)
 
         # Closing caption (revealed with the final beat), under the area code.
         closest_block = m.VGroup(
@@ -1542,8 +1545,8 @@ class Presentation(ThreeDSlide):
         # Hand over from the static beat-3 mobjects (identical at s=0).
         self.remove(point_dot, perp_lines, feet_dots)
         self.add(dyn_lines, dyn_point)
-        # Bring in the text panel alongside the moving-point animation.
-        self.play(m.FadeIn(right_panel), run_time=0.6)
+        # Bring in the title + distance panel alongside the line animation.
+        self.play(m.FadeIn(panel_title), m.FadeIn(dist_section), run_time=0.6)
         self.play(tracker.animate.set_value(1.0), run_time=7, rate_func=m.linear)
         self.next_slide()
 
@@ -1585,6 +1588,7 @@ class Presentation(ThreeDSlide):
         self.play(
             m.FadeOut(dyn_lines), m.FadeOut(dyn_point),
             m.FadeIn(static_areas), m.FadeIn(static_pt),
+            m.FadeIn(area_section),
         )
         # Hand over to the live area mobjects (identical at s=0) and sweep again.
         dyn_areas = m.always_redraw(make_areas)
