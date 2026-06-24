@@ -1095,7 +1095,21 @@ class Presentation(ThreeDSlide):
             pitfall_boxed, m.LEFT
         )
         pitfall_note = m.VGroup(pitfall_tag, pitfall_boxed)
-        pitfall_note.next_to(trick, m.DOWN, buff=0.7, aligned_edge=m.LEFT)
+        pitfall_note.next_to(trick, m.DOWN, buff=1.9, aligned_edge=m.LEFT)
+
+        # Product-rule line shown above the pitfall box (motivates the pitfall).
+        # Two stacked mobjects (label + formula) avoid LaTeX line-break issues.
+        product_rule = m.VGroup(
+            m.Text("Product rule:", font_size=24, color=m.BLACK),
+            m.MathTex(
+                r"\nabla\!\left(f_{\mathrm{STE}} \cdot g_{\mathrm{STE}}\right)"
+                r"= \nabla f_{\tau} \cdot g + f \cdot \nabla g_{\tau}",
+                font_size=30,
+            ),
+        ).arrange(m.DOWN, buff=0.18, aligned_edge=m.LEFT)
+        if product_rule.width > 6.0:
+            product_rule.scale(6.0 / product_rule.width)
+        product_rule.next_to(pitfall_note, m.UP, buff=0.7, aligned_edge=m.LEFT)
 
         # 2D-view legend (hard vs smooth relu) and the 3D-view label + the
         # gradient-arrow legend. All pinned to the frame.
@@ -1113,16 +1127,16 @@ class Presentation(ThreeDSlide):
                 m.Text('sj.relu(x, mode="smooth")', font="Monospace",
                        font_size=20, color=m.BLACK),
             ).arrange(m.RIGHT, buff=0.15),
-        ).arrange(m.DOWN, buff=0.18, aligned_edge=m.LEFT).move_to([3.0, 2.2, 0])
+        ).arrange(m.DOWN, buff=0.18, aligned_edge=m.LEFT).move_to([3.5, 2.2, 0])
 
         label_relu_st = m.Text(
             'sj.st(sj.relu)(x)',
             font="Monospace", font_size=24, color=m.BLACK,
-        ).move_to([2.9, 2.3, 0])
+        ).move_to([3.4, 2.3, 0])
         label_saddle = m.Text(
             'y * sj.st(sj.relu)(x)',
             font="Monospace", font_size=24, color=m.BLACK,
-        ).move_to([2.9, 2.3, 0])
+        ).move_to([3.4, 2.3, 0])
         # The last beat's title is a code box (replaces the text title) showing
         # the straight-through of the whole product.
         code_text = m.Paragraph(
@@ -1136,24 +1150,24 @@ class Presentation(ThreeDSlide):
             color=m.GREY, stroke_width=0.0,
             fill_color=CODE_BG_COLOR, fill_opacity=1.0,
         )
-        code_box = m.VGroup(code_bg, code_text).move_to([3.0, 2.4, 0])
+        code_box = m.VGroup(code_bg, code_text).move_to([3.5, 2.4, 0])
         # Legend describing the in-plane gradient arrows: to the right of the
         # plot, slightly below the x-axis.
         grad_legend = m.VGroup(
             m.Arrow(
                 m.ORIGIN, 0.55 * m.RIGHT, color=m.BLACK, buff=0.0,
-                stroke_width=3, max_tip_length_to_length_ratio=0.4,
+                stroke_width=2, max_tip_length_to_length_ratio=0.4,
             ),
-            m.Text("gradients", font="Monospace", font_size=22, color=m.BLACK),
-        ).arrange(m.RIGHT, buff=0.18).move_to([1.3, -2.8, 0])
+            m.Text("gradients", font="Monospace", font_size=18, color=m.BLACK),
+        ).arrange(m.RIGHT, buff=0.18).move_to([1.06, -1.3, 0])
 
         self.add_fixed_in_frame_mobjects(
-            header, trick, pitfall_note, legend_2d, label_relu_st, label_saddle,
-            code_box, grad_legend,
+            header, trick, product_rule, pitfall_note, legend_2d, label_relu_st,
+            label_saddle, code_box, grad_legend,
         )
         self.remove(
-            header, trick, pitfall_note, legend_2d, label_relu_st, label_saddle,
-            code_box, grad_legend,
+            header, trick, product_rule, pitfall_note, legend_2d, label_relu_st,
+            label_saddle, code_box, grad_legend,
         )
 
         # ---------------------- Right: the 3D surface --------------------
@@ -1162,7 +1176,7 @@ class Presentation(ThreeDSlide):
             x_length=4.5, y_length=4.5, z_length=3.0,
             axis_config=dict(color=m.GREY_D, stroke_width=2),
             tips=False,
-        ).shift(2.6 * m.RIGHT + 0.5 * m.UP)
+        ).shift(3.1 * m.RIGHT + 0.5 * m.UP)
 
         # Faint reference grid on the z = 0 floor, to read the 3D surface
         # against (revealed with the isometric/3D view).
@@ -1286,14 +1300,22 @@ class Presentation(ThreeDSlide):
         self.next_slide()
 
         # Beat 3: swap relu_st(x) for the full y * sj.st(relu)(x) surface and
-        # its gradient field, and raise the straight-through pitfall.
+        # its gradient field, and state the product rule.
         self.play(
             m.ReplacementTransform(relu_st_surface, saddle_surface),
             m.ReplacementTransform(relu_st_field, saddle_field),
             m.FadeOut(label_relu_st),
             m.FadeIn(label_saddle),
-            m.FadeIn(pitfall_note, shift=0.15 * m.DOWN),
         )
+        self.next_slide()
+        
+        self.play(
+            m.FadeIn(product_rule, shift=0.15 * m.DOWN),
+        )
+        self.next_slide()
+
+        # Beat 3b: the product rule leads to the straight-through pitfall.
+        self.play(m.FadeIn(pitfall_note, shift=0.15 * m.DOWN))
         self.next_slide()
 
         # Beat 4: swap to sj.st(y * relu)(x) -- same surface, but its gradient
