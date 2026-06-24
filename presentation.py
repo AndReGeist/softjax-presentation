@@ -198,26 +198,26 @@ class Presentation(ThreeDSlide):
         self._init_canvas()
         self.title()
         self.next_slide()
-        #self.differentiable_rendering()
-        #self.next_slide()
-        #self.intro()
-        #self.next_slide()
-        #self.heaviside_and_bools()
-        #self.next_slide()
-        #self.comparisons_and_logic()
-        #self.next_slide()
-        #self.axiswise()
-        #self.next_slide()
-        #self.softsort()
-        #self.next_slide()
+        self.differentiable_rendering()
+        self.next_slide()
+        self.intro()
+        self.next_slide()
+        self.heaviside_and_bools()
+        self.next_slide()
+        self.comparisons_and_logic()
+        self.next_slide()
+        self.axiswise()
+        self.next_slide()
+        self.softsort()
+        self.next_slide()
         self.relu()
         self.next_slide()
-        #self.library_overview()
-        #self.next_slide()
-        #self.sorting_benchmark()
-        #self.next_slide()
-        #self.straight_through()
-        #self.next_slide()
+        self.library_overview()
+        self.next_slide()
+        self.sorting_benchmark()
+        self.next_slide()
+        self.straight_through()
+        self.next_slide()
         self.thanks()
         self.next_slide()
 
@@ -974,39 +974,31 @@ class Presentation(ThreeDSlide):
             slant=m.ITALIC, font_size=24, color=m.BLACK,
         )
 
-        # Lay the whole slide out centred: header on top, the two columns
-        # below it, then the caption and the sort identity at the bottom.
-        body = m.VGroup(
-            header, columns,
-            m.VGroup(sort_caption, sort_eq).arrange(m.DOWN, buff=0.2),
-        ).arrange(m.DOWN, buff=0.9)
-        body.move_to(m.ORIGIN)
+        # Header + the two derivations form the upper block; lift it to the top
+        # and keep the header close to the column titles.
+        top = m.VGroup(header, columns).arrange(m.DOWN, buff=0.45)
+        top.to_edge(m.UP, buff=0.5)
 
-        # Drop the caption + sort identity directly beneath the gating column so
-        # the connecting arrow is perfectly vertical.
-        sort_caption.set_x(gating_plot.get_x())
-        sort_eq.set_x(gating_plot.get_x())
-
-        # Small arrow heads; extra breathing room below the gating plot.
+        # Short connecting arrow from the gating plot down to the sort identity.
         arrow = m.Arrow(
-            [gating_plot.get_x(), gating_plot.get_bottom()[1] - 0.35, 0],
-            [gating_plot.get_x(), sort_caption.get_top()[1] + 0.1, 0],
+            [gating_plot.get_x(), gating_plot.get_bottom()[1] - 0.15, 0],
+            [gating_plot.get_x(), gating_plot.get_bottom()[1] - 0.6, 0],
             color=m.BLACK, buff=0.0, stroke_width=5,
-            max_tip_length_to_length_ratio=0.2, tip_length=0.28,
+            max_tip_length_to_length_ratio=0.22, tip_length=0.26,
         )
+        sort_caption.next_to(arrow, m.DOWN, buff=0.18).set_x(gating_plot.get_x())
+        sort_eq.next_to(sort_caption, m.DOWN, buff=0.2).set_x(gating_plot.get_x())
 
-        # Last beat: a matching arrow under the integration plot ending in a
-        # large bold question mark (the integration route is the open one).
-        # The integration plot sits lower than the gating one (its integral
-        # sign is taller), so anchor the arrow to the question mark directly.
-        question = m.Text("?", weight=m.BOLD, font_size=72, color=m.BLACK)
-        question.move_to([integ_plot.get_x(), sort_eq.get_center()[1], 0])
+        # Matching short arrow under the integration plot ending in a large bold
+        # question mark (the integration route is the open one).
         integ_arrow = m.Arrow(
-            [integ_plot.get_x(), integ_plot.get_bottom()[1] - 0.2, 0],
-            [integ_plot.get_x(), question.get_top()[1] + 0.15, 0],
+            [integ_plot.get_x(), integ_plot.get_bottom()[1] - 0.15, 0],
+            [integ_plot.get_x(), integ_plot.get_bottom()[1] - 0.6, 0],
             color=m.BLACK, buff=0.0, stroke_width=5,
-            max_tip_length_to_length_ratio=0.2, tip_length=0.28,
+            max_tip_length_to_length_ratio=0.22, tip_length=0.26,
         )
+        question = m.Text("?", weight=m.BOLD, font_size=72, color=m.BLACK)
+        question.next_to(integ_arrow, m.DOWN, buff=0.18).set_x(integ_plot.get_x())
 
         # Beat 1: the framing statement + the two derivations side by side.
         self.play(m.FadeIn(header))
@@ -1019,6 +1011,27 @@ class Presentation(ThreeDSlide):
 
         # Beat 3: the integration route -> open question.
         self.play(m.GrowArrow(integ_arrow), m.FadeIn(question))
+        self.next_slide()
+
+        # Beat 4: resolve the question -- autodiff only needs the Jacobian.
+        jac_text = m.Text(
+            "Autodiff only needs the Jacobian!",
+            slant=m.ITALIC, font_size=22, color=m.BLACK,
+        )
+        code_text = m.Paragraph(
+            "P = stop_gradient(sj.argsort(x))",
+            "sorted_values = sj.take_along_axis(x, P)",
+            font="Monospace", font_size=18, color=m.BLACK, line_spacing=0.6,
+        )
+        code_bg = m.SurroundingRectangle(
+            code_text, buff=0.22, corner_radius=0.1,
+            color=m.GREY, stroke_width=0.0,
+            fill_color=CODE_BG_COLOR, fill_opacity=1.0,
+        )
+        code_box = m.VGroup(code_bg, code_text)
+        answer = m.VGroup(jac_text, code_box).arrange(m.DOWN, buff=0.2)
+        answer.next_to(integ_arrow, m.DOWN, buff=0.18).set_x(integ_plot.get_x())
+        self.play(m.FadeOut(question), m.FadeIn(answer))
 
     def library_overview(self):
         """Library overview — booktabs-style table of all SoftJAX operators."""
