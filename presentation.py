@@ -57,6 +57,9 @@ tex_template.add_to_preamble(
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{mathtools}
+\newcommand{\heaviside}{\operatorname{H}}
+\newcommand{\sort}{\operatorname{sort}}
+\newcommand{\argsort}{\operatorname{argsort}}
 """
 )
 
@@ -195,8 +198,8 @@ class Presentation(ThreeDSlide):
         self._init_canvas()
         self.title()
         self.next_slide()
-        self.differentiable_rendering()
-        self.next_slide()
+        #self.differentiable_rendering()
+        #self.next_slide()
         #self.intro()
         #self.next_slide()
         #self.heaviside_and_bools()
@@ -207,12 +210,14 @@ class Presentation(ThreeDSlide):
         #self.next_slide()
         #self.softsort()
         #self.next_slide()
+        self.relu()
+        self.next_slide()
         #self.library_overview()
         #self.next_slide()
         #self.sorting_benchmark()
         #self.next_slide()
-        self.straight_through()
-        self.next_slide()
+        #self.straight_through()
+        #self.next_slide()
         self.thanks()
         self.next_slide()
 
@@ -896,6 +901,125 @@ class Presentation(ThreeDSlide):
             if i < len(image_files) - 1:
                 self.next_slide()
 
+    def relu(self):
+        """Two principled derivations of a soft ReLU (gating vs. integration),
+        then an arrow tying the gating construction to the soft-sort identity
+        (permutation matrix times x)."""
+        self.new_clean_slide("")
+
+        header = m.Text(
+            "Connection between ReLu and axiswise operators",
+            weight=m.BOLD, font_size=30, color=m.BLACK,
+        )
+
+        # A small line plot of sj.relu(x, gated=...) evaluated directly through
+        # softjax (single unified helper for both columns).
+        def relu_plot(gated):
+            ax = m.Axes(
+                x_range=[-2, 2, 1], y_range=[-0.4, 2, 1],
+                x_length=2.6, y_length=1.5,
+                axis_config=dict(
+                    color=m.GREY_D, stroke_width=2,
+                    include_ticks=False, tip_length=0.03,
+                ),
+                tips=False,
+            )
+            xs = np.linspace(-2, 2, 200)
+            ys = np.asarray(
+                sj.relu(jnp.asarray(xs), mode="smooth", softness=0.5, gated=gated)
+            )
+            curve = (
+                m.VMobject()
+                .set_points_as_corners(
+                    [ax.c2p(float(x), float(y)) for x, y in zip(xs, ys)]
+                )
+                .set_stroke(color=SOFT_MODES[0][1], width=4)
+            )
+            return m.VGroup(ax, curve)
+
+        # ---------------- Left column: Gating ----------------
+        gating_label = m.Text("Gating", weight=m.BOLD, font_size=26, color=m.BLACK)
+        gating_eq = m.MathTex(
+            r"\operatorname{relu}_\tau(x) \coloneqq \heaviside_{\tau}(x)\cdot x",
+            font_size=30,
+        )
+        gating_plot = relu_plot(gated=True)
+        gating = m.VGroup(gating_label, gating_eq, gating_plot).arrange(
+            m.DOWN, buff=0.3)
+
+        # ---------------- Right column: Integration ----------------
+        integ_label = m.Text("Integration", weight=m.BOLD, font_size=26, color=m.BLACK)
+        integ_eq = m.MathTex(
+            r"\mathrm{relu}_\tau(x) \coloneqq \int_0^x \heaviside_{\tau}(t)\,\mathrm{d} t",
+            font_size=30,
+        )
+        integ_plot = relu_plot(gated=False)
+        integ = m.VGroup(integ_label, integ_eq, integ_plot).arrange(
+            m.DOWN, buff=0.3)
+
+        # Wide gap between the two derivations.
+        columns = m.VGroup(gating, integ).arrange(
+            m.RIGHT, buff=3.0, aligned_edge=m.UP)
+
+        # ---------------- Sort identity below, linked by a vertical arrow ----
+        sort_eq = m.MathTex(
+            r"\sort_\tau(\mathbf{x}) \coloneqq \argsort_{\tau}(\mathbf{x})\, \mathbf{x}"
+            r" = P^\star_\tau(\mathbf{x})\, \mathbf{x}.",
+            font_size=30,
+        )
+
+        # Italic caption shown just above the sort identity.
+        sort_caption = m.Text(
+            "Similar structure to axiswise operators!",
+            slant=m.ITALIC, font_size=24, color=m.BLACK,
+        )
+
+        # Lay the whole slide out centred: header on top, the two columns
+        # below it, then the caption and the sort identity at the bottom.
+        body = m.VGroup(
+            header, columns,
+            m.VGroup(sort_caption, sort_eq).arrange(m.DOWN, buff=0.2),
+        ).arrange(m.DOWN, buff=0.9)
+        body.move_to(m.ORIGIN)
+
+        # Drop the caption + sort identity directly beneath the gating column so
+        # the connecting arrow is perfectly vertical.
+        sort_caption.set_x(gating_plot.get_x())
+        sort_eq.set_x(gating_plot.get_x())
+
+        # Small arrow heads; extra breathing room below the gating plot.
+        arrow = m.Arrow(
+            [gating_plot.get_x(), gating_plot.get_bottom()[1] - 0.35, 0],
+            [gating_plot.get_x(), sort_caption.get_top()[1] + 0.1, 0],
+            color=m.BLACK, buff=0.0, stroke_width=5,
+            max_tip_length_to_length_ratio=0.2, tip_length=0.28,
+        )
+
+        # Last beat: a matching arrow under the integration plot ending in a
+        # large bold question mark (the integration route is the open one).
+        # The integration plot sits lower than the gating one (its integral
+        # sign is taller), so anchor the arrow to the question mark directly.
+        question = m.Text("?", weight=m.BOLD, font_size=72, color=m.BLACK)
+        question.move_to([integ_plot.get_x(), sort_eq.get_center()[1], 0])
+        integ_arrow = m.Arrow(
+            [integ_plot.get_x(), integ_plot.get_bottom()[1] - 0.2, 0],
+            [integ_plot.get_x(), question.get_top()[1] + 0.15, 0],
+            color=m.BLACK, buff=0.0, stroke_width=5,
+            max_tip_length_to_length_ratio=0.2, tip_length=0.28,
+        )
+
+        # Beat 1: the framing statement + the two derivations side by side.
+        self.play(m.FadeIn(header))
+        self.play(m.FadeIn(gating), m.FadeIn(integ))
+        self.next_slide()
+
+        # Beat 2: connect the gating construction to the soft-sort identity.
+        self.play(m.GrowArrow(arrow), m.FadeIn(sort_caption), m.FadeIn(sort_eq))
+        self.next_slide()
+
+        # Beat 3: the integration route -> open question.
+        self.play(m.GrowArrow(integ_arrow), m.FadeIn(question))
+
     def library_overview(self):
         """Library overview — booktabs-style table of all SoftJAX operators."""
         self.new_clean_slide("Library overview")
@@ -1504,7 +1628,7 @@ class Presentation(ThreeDSlide):
         # red inside the triangle, green outside.
         self.play(m.FadeIn(point_dot))
         self.play(m.Create(perp_lines), m.FadeIn(feet_dots))
-        self.next_slide()
+        #self.next_slide() # TODO: Remove?
 
         # Beat 4: slide the point through the plane; the orthogonal distance
         # lines stretch and shrink, and flip per edge red (inside) <-> green
