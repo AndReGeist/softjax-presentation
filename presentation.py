@@ -1039,7 +1039,7 @@ class Presentation(ThreeDSlide):
         the x-z plane; it then fades out as the 3D surface f(x,y) = y*relu_st(x)
         and its normalized jax.grad field fade in and the camera pans to an
         isometric view."""
-        self.new_clean_slide("Straight-through estimation")
+        self.new_clean_slide("STE")
 
         # Start looking along the y-axis (x to the right, z up) so the surface
         # reads like a flat 2D plot of relu(x). The slide title / number live in
@@ -1069,6 +1069,28 @@ class Presentation(ThreeDSlide):
         trick = m.VGroup(trick_tag, boxed)
         trick.to_corner(m.UL, buff=0.4).shift(1.0 * m.DOWN)
 
+        # ---------------- Below it: the STE pitfall box ------------------
+        pitfall_formula = m.MathTex(
+            r"\left(f \cdot g\right)_{\mathrm{STE}}"
+            r" \neq f_{\mathrm{STE}} \cdot g_{\mathrm{STE}}",
+            font_size=28,
+        )
+        pitfall_box = m.SurroundingRectangle(
+            pitfall_formula, buff=0.3, corner_radius=0.15,
+            color=INVALID_COLOR, stroke_width=2.5,
+        )
+        pitfall_boxed = m.VGroup(pitfall_formula, pitfall_box)
+        if pitfall_boxed.width > 5.3:
+            pitfall_boxed.scale(5.3 / pitfall_boxed.width)
+        pitfall_tag = m.Text(
+            "Straight-through pitfall", font_size=22, color=m.BLACK
+        )
+        pitfall_tag.next_to(pitfall_boxed, m.UP, buff=0.1).align_to(
+            pitfall_boxed, m.LEFT
+        )
+        pitfall_note = m.VGroup(pitfall_tag, pitfall_boxed)
+        pitfall_note.next_to(trick, m.DOWN, buff=0.7, aligned_edge=m.LEFT)
+
         # 2D-view legend (hard vs smooth relu) and the 3D-view label + the
         # gradient-arrow legend. All pinned to the frame.
         def swatch(color):
@@ -1085,29 +1107,48 @@ class Presentation(ThreeDSlide):
                 m.Text('sj.relu(x, mode="smooth")', font="Monospace",
                        font_size=20, color=m.BLACK),
             ).arrange(m.RIGHT, buff=0.15),
-        ).arrange(m.DOWN, buff=0.18, aligned_edge=m.LEFT).move_to([3.0, 2.6, 0])
+        ).arrange(m.DOWN, buff=0.18, aligned_edge=m.LEFT).move_to([3.0, 2.2, 0])
 
         label_relu_st = m.Text(
             'sj.st(sj.relu)(x)',
             font="Monospace", font_size=24, color=m.BLACK,
-        ).move_to([2.9, 2.7, 0])
+        ).move_to([2.9, 2.3, 0])
         label_saddle = m.Text(
             'y * sj.st(sj.relu)(x)',
             font="Monospace", font_size=24, color=m.BLACK,
-        ).move_to([2.9, 2.7, 0])
-        # Legend describing the in-plane gradient arrows.
+        ).move_to([2.9, 2.3, 0])
+        # The last beat's title is a code box (replaces the text title) showing
+        # the straight-through of the whole product.
+        code_text = m.Paragraph(
+            "@sj.st",
+            "def f(x, y):",
+            "    return y * sj.relu(x)",
+            font="Monospace", font_size=20, color=m.BLACK, line_spacing=0.6,
+        )
+        code_bg = m.SurroundingRectangle(
+            code_text, buff=0.22, corner_radius=0.1,
+            color=m.GREY, stroke_width=0.0,
+            fill_color=CODE_BG_COLOR, fill_opacity=1.0,
+        )
+        code_box = m.VGroup(code_bg, code_text).move_to([3.0, 3.0, 0])
+        # Legend describing the in-plane gradient arrows: to the right of the
+        # plot, slightly below the x-axis.
         grad_legend = m.VGroup(
             m.Arrow(
                 m.ORIGIN, 0.55 * m.RIGHT, color=m.BLACK, buff=0.0,
                 stroke_width=3, max_tip_length_to_length_ratio=0.4,
             ),
             m.Text("gradients", font="Monospace", font_size=22, color=m.BLACK),
-        ).arrange(m.RIGHT, buff=0.18).move_to([2.9, -2.7, 0])
+        ).arrange(m.RIGHT, buff=0.18).move_to([5.0, -0.7, 0])
 
         self.add_fixed_in_frame_mobjects(
-            trick, legend_2d, label_relu_st, label_saddle, grad_legend
+            trick, pitfall_note, legend_2d, label_relu_st, label_saddle,
+            code_box, grad_legend,
         )
-        self.remove(trick, legend_2d, label_relu_st, label_saddle, grad_legend)
+        self.remove(
+            trick, pitfall_note, legend_2d, label_relu_st, label_saddle,
+            code_box, grad_legend,
+        )
 
         # ---------------------- Right: the 3D surface --------------------
         axes = m.ThreeDAxes(
@@ -1115,7 +1156,7 @@ class Presentation(ThreeDSlide):
             x_length=4.5, y_length=4.5, z_length=3.0,
             axis_config=dict(color=m.GREY_D, stroke_width=2),
             tips=False,
-        ).shift(2.6 * m.RIGHT)
+        ).shift(2.6 * m.RIGHT + 0.5 * m.UP)
 
         # Faint reference grid on the z = 0 floor, to read the 3D surface
         # against (revealed with the isometric/3D view).
@@ -1166,13 +1207,22 @@ class Presentation(ThreeDSlide):
             # coolwarm: negative -> red, zero -> grey, positive -> blue.
             surf.set_fill_by_value(
                 axes=axes,
-                colorscale=[(m.RED, -zmax), (m.GREY, 0.0), (m.BLUE, zmax)],
+                colorscale=[(m.RED, -zmax), (m.GREY_A, 0.0), (m.BLUE, zmax)],
                 axis=2,
             )
             return surf
 
+        # Last beat's function: sj.st applied to the *whole* product
+        # y * relu(x). Its smooth backward (softness 0.5) yields informative
+        # gradients everywhere -- unlike y * sj.st(relu)(x), whose field
+        # vanishes for x < 0 -- illustrating (f*g)_STE != f_STE * g_STE.
+        @sj.st
+        def st_product(x, y, mode="smooth", softness=0.5):
+            return y * sj.relu(x, mode=mode, softness=softness)
+
         relu_st_grad = jax.grad(lambda p: sj.relu_st(p[0]))
         saddle_grad = jax.grad(lambda p: p[1] * sj.relu_st(p[0]))
+        product_grad = jax.grad(lambda p: st_product(p[0], p[1]))
 
         def make_grad_field(grad_fn, arrow_len=0.45):
             arrows = m.VGroup()
@@ -1198,6 +1248,10 @@ class Presentation(ThreeDSlide):
         relu_st_field = make_grad_field(relu_st_grad)
         saddle_surface = make_surface(saddle_z, 2.0)
         saddle_field = make_grad_field(saddle_grad)
+        # sj.st(y * relu)(x): same forward surface as the saddle, but a
+        # gradient field that is informative everywhere (the correct STE).
+        product_surface = make_surface(saddle_z, 2.0)
+        product_field = make_grad_field(product_grad)
 
         # Beat 1: front (2D) view — relu hard vs smooth as line plots.
         self.play(
@@ -1224,11 +1278,22 @@ class Presentation(ThreeDSlide):
         )
         self.next_slide()
 
-        # Beat 3: swap relu_st(x) for the full y * relu_st(x) surface
-        # and its (normalized) gradient field.
+        # Beat 3: swap relu_st(x) for the full y * sj.st(relu)(x) surface and
+        # its gradient field, and raise the straight-through pitfall.
         self.play(
             m.ReplacementTransform(relu_st_surface, saddle_surface),
             m.ReplacementTransform(relu_st_field, saddle_field),
             m.FadeOut(label_relu_st),
             m.FadeIn(label_saddle),
+            m.FadeIn(pitfall_note, shift=0.15 * m.DOWN),
+        )
+        self.next_slide()
+
+        # Beat 4: swap to sj.st(y * relu)(x) -- same surface, but its gradient
+        # field is informative everywhere (the correct STE for the product).
+        self.play(
+            m.ReplacementTransform(saddle_surface, product_surface),
+            m.ReplacementTransform(saddle_field, product_field),
+            m.FadeOut(label_saddle),
+            m.FadeIn(code_box),
         )
