@@ -1346,18 +1346,27 @@ class Presentation(ThreeDSlide):
         # The camera plane is the vertical plane x = X_PLANE (to the left); the
         # 3D triangle floats to the right and is projected straight along -x.
         X_PLANE = -2.0
+        # Push the whole construction left to clear room for the right-hand text
+        # panel. SHIFT_DIR is the screen-horizontal ("right") axis in world
+        # space for this camera (proportional to (-sin theta, cos theta, 0)), so
+        # shifting along -SHIFT_DIR moves the scene purely leftward on screen.
+        SHIFT_DIR = np.array([np.sin(48 * m.DEGREES), np.cos(48 * m.DEGREES), 0.0])
+        OFFSET = -3.0 * SHIFT_DIR
 
         def on_plane(yz):
-            return np.array([X_PLANE, yz[0], yz[1]])
+            return np.array([X_PLANE, yz[0], yz[1]]) + OFFSET
 
         # ---------------- Camera (image) plane with a faint grid ----------
         y_min, y_max = -2.4, 2.4
         z_min, z_max = -2.0, 2.0
+        # No fill: a filled plane is coplanar with the projected triangle and
+        # z-fights it (the triangle turns grey at some offsets). The border plus
+        # the faint grid convey the plane without a competing fill surface.
         plane_face = m.Polygon(
             on_plane((y_min, z_min)), on_plane((y_max, z_min)),
             on_plane((y_max, z_max)), on_plane((y_min, z_max)),
             stroke_color=m.GREY_B, stroke_width=2,
-            fill_color=m.GREY_B, fill_opacity=0.12,
+            fill_opacity=0.0,
         )
         grid = m.VGroup()
         step = 0.8
@@ -1374,19 +1383,22 @@ class Presentation(ThreeDSlide):
         cam_plane = m.VGroup(plane_face, grid)
 
         # ---------------- 3D triangle (right) -----------------------------
-        v = [
+        # v_base holds the unshifted (y, z) coordinates used for the 2D geometry
+        # below; v is the same triangle translated by OFFSET for display.
+        v_base = [
             np.array([1.6, -1.3, -1.0]),
             np.array([2.6, 1.4, -0.2]),
             np.array([1.1, 0.0, 1.4]),
         ]
+        v = [p + OFFSET for p in v_base]
         tri3d = m.Polygon(*v, stroke_color=BS_COLOR, stroke_width=3,
                           fill_color=BS_COLOR, fill_opacity=0.25)
         dots3d = m.VGroup(*[m.Dot3D(p, radius=0.06, color=m.BLUE_E) for p in v])
 
         # ---------------- Orthographic projection onto the plane ----------
-        p2d = [on_plane((p[1], p[2])) for p in v]   # collapse x -> X_PLANE
-        tri2d = m.Polygon(*p2d, stroke_color=UE_COLOR, stroke_width=3,
-                          fill_color=UE_COLOR, fill_opacity=0.18)
+        p2d = [on_plane((p[1], p[2])) for p in v_base]   # collapse x -> X_PLANE
+        tri2d = m.Polygon(*p2d, stroke_color=m.GREY_D, stroke_width=3,
+                          fill_color=m.GREY_D, fill_opacity=0.18)
         dots2d = m.VGroup(*[m.Dot3D(p, radius=0.06, color=m.MAROON_E) for p in p2d])
         proj_rays = m.VGroup(*[
             m.DashedLine(v[i], p2d[i], stroke_color=m.GREY, stroke_width=2,
@@ -1396,21 +1408,13 @@ class Presentation(ThreeDSlide):
 
         # ---------------- Sample point + edge-distance lines --------------
         # Work in the plane's (y, z) coordinates for the 2D geometry.
-        a = np.array([v[0][1], v[0][2]])
-        b = np.array([v[1][1], v[1][2]])
-        c = np.array([v[2][1], v[2][2]])
+        a = np.array([v_base[0][1], v_base[0][2]])
+        b = np.array([v_base[1][1], v_base[1][2]])
+        c = np.array([v_base[2][1], v_base[2][2]])
         P = np.array([0.1, -0.1])    # inside the projected triangle -> red
 
         def cross2(u, w):
             return u[0] * w[1] - u[1] * w[0]
-
-        def inside(p, a, b, c):
-            d1 = cross2(b - a, p - a)
-            d2 = cross2(c - b, p - b)
-            d3 = cross2(a - c, p - c)
-            has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
-            has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
-            return not (has_neg and has_pos)
 
         def foot(p, a, b):
             # Foot of the perpendicular from p onto the line through a, b.
@@ -1418,15 +1422,45 @@ class Presentation(ThreeDSlide):
             t = np.dot(p - a, ab) / np.dot(ab, ab)
             return a + t * ab
 
-        edge_color = INVALID_COLOR if inside(P, a, b, c) else VALID_COLOR
+        # Per-edge signed distance: cross2(B-A, P-A) is positive when P lies on
+        # the inside half-plane of the directed (CCW) edge A->B. Each line is
+        # coloured on its own sign -- red inside that edge, green outside.
+        def edge_color(p, A, B):
+            return INVALID_COLOR if cross2(B - A, p - A) > 0 else VALID_COLOR
+
         point_dot = m.Dot3D(on_plane(P), radius=0.07, color=m.BLACK)
         perp_lines = m.VGroup()
         feet_dots = m.VGroup()
         for A, B in [(a, b), (b, c), (c, a)]:
             F = foot(P, A, B)
+            col = edge_color(P, A, B)
             perp_lines.add(m.Line(on_plane(P), on_plane(F),
-                                  stroke_color=edge_color, stroke_width=3))
-            feet_dots.add(m.Dot3D(on_plane(F), radius=0.045, color=edge_color))
+                                  stroke_color=col, stroke_width=3))
+            feet_dots.add(m.Dot3D(on_plane(F), radius=0.045, color=col))
+
+        # ---------------- Right-hand text panel (pinned to frame) ---------
+        panel_title = m.Text(
+            "Check if triangle covers pixel",
+            weight=m.BOLD, font_size=26, color=m.BLACK,
+        )
+        dist_label = m.Text("Distance-based:", font_size=24, color=m.BLACK)
+        code_text = m.Paragraph(
+            "d_min = jnp.min(jnp.array([d1, d2, d3]))",
+            "inside = ( min_dist > 0.0 )",
+            font="Monospace", font_size=18, color=m.BLACK, line_spacing=0.6,
+        )
+        code_bg = m.SurroundingRectangle(
+            code_text, buff=0.22, corner_radius=0.1, color=m.GREY,
+            stroke_width=0.0, fill_color=CODE_BG_COLOR, fill_opacity=1.0,
+        )
+        code_box = m.VGroup(code_bg, code_text)
+        lower = m.VGroup(dist_label, code_box).arrange(
+            m.DOWN, buff=0.25, aligned_edge=m.LEFT)
+        right_panel = m.VGroup(panel_title, lower).arrange(
+            m.DOWN, buff=0.55, aligned_edge=m.LEFT)
+        right_panel.to_edge(m.RIGHT, buff=0.5).shift(0.3 * m.UP)
+        self.add_fixed_in_frame_mobjects(right_panel)
+        self.remove(right_panel)
 
         # ------------------------------ Beats -----------------------------
         # Beat 1: the camera plane (left) and the 3D triangle (right).
@@ -1444,6 +1478,49 @@ class Presentation(ThreeDSlide):
         # red inside the triangle, green outside.
         self.play(m.FadeIn(point_dot))
         self.play(m.Create(perp_lines), m.FadeIn(feet_dots))
+        self.next_slide()
+
+        # Beat 4: slide the point through the plane; the orthogonal distance
+        # lines stretch and shrink, and flip red (inside) <-> green (outside).
+        waypoints = [
+            P,                          # inside  -> red
+            np.array([1.4, 0.9]),       # outside (upper right) -> green
+            np.array([0.0, 0.2]),       # inside  -> red
+            np.array([-0.3, -1.4]),     # outside (below) -> green
+            P,                          # back inside -> red
+        ]
+
+        def pos(s):
+            s = float(np.clip(s, 0.0, 1.0)) * (len(waypoints) - 1)
+            i = min(int(np.floor(s)), len(waypoints) - 2)
+            f = s - i
+            return waypoints[i] * (1 - f) + waypoints[i + 1] * f
+
+        tracker = m.ValueTracker(0.0)
+
+        def make_point():
+            return m.Dot3D(on_plane(pos(tracker.get_value())),
+                           radius=0.07, color=m.BLACK)
+
+        def make_lines():
+            p = pos(tracker.get_value())
+            g = m.VGroup()
+            for A, B in [(a, b), (b, c), (c, a)]:
+                F = foot(p, A, B)
+                col = edge_color(p, A, B)
+                g.add(m.Line(on_plane(p), on_plane(F),
+                             stroke_color=col, stroke_width=3))
+                g.add(m.Dot3D(on_plane(F), radius=0.045, color=col))
+            return g
+
+        dyn_point = m.always_redraw(make_point)
+        dyn_lines = m.always_redraw(make_lines)
+        # Hand over from the static beat-3 mobjects (identical at s=0).
+        self.remove(point_dot, perp_lines, feet_dots)
+        self.add(dyn_lines, dyn_point)
+        # Bring in the text panel alongside the moving-point animation.
+        self.play(m.FadeIn(right_panel), run_time=0.6)
+        self.play(tracker.animate.set_value(1.0), run_time=7, rate_func=m.linear)
 
     def thanks(self):
         """Closing slide: a centred thank-you above a closing image."""
