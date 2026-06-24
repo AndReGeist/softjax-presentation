@@ -195,6 +195,8 @@ class Presentation(ThreeDSlide):
         self._init_canvas()
         self.title()
         self.next_slide()
+        self.differentiable_rendering()
+        self.next_slide()
         #self.intro()
         #self.next_slide()
         #self.heaviside_and_bools()
@@ -1331,6 +1333,117 @@ class Presentation(ThreeDSlide):
             m.FadeOut(label_saddle),
             m.FadeIn(code_box),
         )
+
+    def differentiable_rendering(self):
+        """Motivation: basic differentiable rendering. A 3D triangle is
+        orthographically projected onto a gridded camera plane (projection rays
+        connect the vertices); an edge-distance test at a sample point hints at
+        the (non-)differentiable coverage that SoftJAX makes smooth."""
+        self.new_clean_slide("Differentiable rendering")
+        self.set_camera_orientation(phi=72 * m.DEGREES, theta=-48 * m.DEGREES)
+        self.add_fixed_in_frame_mobjects(self.slide_title, self.slide_number)
+
+        # The camera plane is the vertical plane x = X_PLANE (to the left); the
+        # 3D triangle floats to the right and is projected straight along -x.
+        X_PLANE = -2.0
+
+        def on_plane(yz):
+            return np.array([X_PLANE, yz[0], yz[1]])
+
+        # ---------------- Camera (image) plane with a faint grid ----------
+        y_min, y_max = -2.4, 2.4
+        z_min, z_max = -2.0, 2.0
+        plane_face = m.Polygon(
+            on_plane((y_min, z_min)), on_plane((y_max, z_min)),
+            on_plane((y_max, z_max)), on_plane((y_min, z_max)),
+            stroke_color=m.GREY_B, stroke_width=2,
+            fill_color=m.GREY_B, fill_opacity=0.12,
+        )
+        grid = m.VGroup()
+        step = 0.8
+        y = y_min
+        while y <= y_max + 1e-6:
+            grid.add(m.Line(on_plane((y, z_min)), on_plane((y, z_max)),
+                            stroke_color=m.GREY_B, stroke_width=1).set_opacity(0.5))
+            y += step
+        z = z_min
+        while z <= z_max + 1e-6:
+            grid.add(m.Line(on_plane((y_min, z)), on_plane((y_max, z)),
+                            stroke_color=m.GREY_B, stroke_width=1).set_opacity(0.5))
+            z += step
+        cam_plane = m.VGroup(plane_face, grid)
+
+        # ---------------- 3D triangle (right) -----------------------------
+        v = [
+            np.array([1.6, -1.3, -1.0]),
+            np.array([2.6, 1.4, -0.2]),
+            np.array([1.1, 0.0, 1.4]),
+        ]
+        tri3d = m.Polygon(*v, stroke_color=BS_COLOR, stroke_width=3,
+                          fill_color=BS_COLOR, fill_opacity=0.25)
+        dots3d = m.VGroup(*[m.Dot3D(p, radius=0.06, color=m.BLUE_E) for p in v])
+
+        # ---------------- Orthographic projection onto the plane ----------
+        p2d = [on_plane((p[1], p[2])) for p in v]   # collapse x -> X_PLANE
+        tri2d = m.Polygon(*p2d, stroke_color=UE_COLOR, stroke_width=3,
+                          fill_color=UE_COLOR, fill_opacity=0.18)
+        dots2d = m.VGroup(*[m.Dot3D(p, radius=0.06, color=m.MAROON_E) for p in p2d])
+        proj_rays = m.VGroup(*[
+            m.DashedLine(v[i], p2d[i], stroke_color=m.GREY, stroke_width=2,
+                         dash_length=0.12)
+            for i in range(3)
+        ])
+
+        # ---------------- Sample point + edge-distance lines --------------
+        # Work in the plane's (y, z) coordinates for the 2D geometry.
+        a = np.array([v[0][1], v[0][2]])
+        b = np.array([v[1][1], v[1][2]])
+        c = np.array([v[2][1], v[2][2]])
+        P = np.array([0.1, -0.1])    # inside the projected triangle -> red
+
+        def cross2(u, w):
+            return u[0] * w[1] - u[1] * w[0]
+
+        def inside(p, a, b, c):
+            d1 = cross2(b - a, p - a)
+            d2 = cross2(c - b, p - b)
+            d3 = cross2(a - c, p - c)
+            has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
+            has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
+            return not (has_neg and has_pos)
+
+        def foot(p, a, b):
+            # Foot of the perpendicular from p onto the line through a, b.
+            ab = b - a
+            t = np.dot(p - a, ab) / np.dot(ab, ab)
+            return a + t * ab
+
+        edge_color = INVALID_COLOR if inside(P, a, b, c) else VALID_COLOR
+        point_dot = m.Dot3D(on_plane(P), radius=0.07, color=m.BLACK)
+        perp_lines = m.VGroup()
+        feet_dots = m.VGroup()
+        for A, B in [(a, b), (b, c), (c, a)]:
+            F = foot(P, A, B)
+            perp_lines.add(m.Line(on_plane(P), on_plane(F),
+                                  stroke_color=edge_color, stroke_width=3))
+            feet_dots.add(m.Dot3D(on_plane(F), radius=0.045, color=edge_color))
+
+        # ------------------------------ Beats -----------------------------
+        # Beat 1: the camera plane (left) and the 3D triangle (right).
+        self.play(m.FadeIn(cam_plane))
+        self.play(m.Create(tri3d), m.FadeIn(dots3d))
+        self.next_slide()
+
+        # Beat 2: orthographic projection onto the plane, with rays linking the
+        # 3D vertices to their 2D images.
+        self.play(m.Create(proj_rays))
+        self.play(m.TransformFromCopy(tri3d, tri2d), m.FadeIn(dots2d))
+        self.next_slide()
+
+        # Beat 3: a sample point and its orthogonal distance to every edge --
+        # red inside the triangle, green outside.
+        self.play(m.FadeIn(point_dot))
+        self.play(m.Create(perp_lines), m.FadeIn(feet_dots))
 
     def thanks(self):
         """Closing slide: a centred thank-you above a closing image."""
