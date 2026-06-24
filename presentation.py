@@ -203,6 +203,10 @@ class Presentation(Slide):
         self.next_slide()
         self.axiswise()
         self.next_slide()
+        self.softsort()
+        self.next_slide()
+        self.library_overview()
+        self.next_slide()
         #self.relu()
         #self.next_slide()
         #self.argmax()
@@ -866,3 +870,153 @@ class Presentation(Slide):
             m.FadeIn(colvec_label3, shift=0.1 * m.DOWN),
         )
         self.play(m.FadeIn(mean_text3, shift=0.1 * m.DOWN), m.Create(sketch3))
+
+    def softsort(self):
+        """Example: SoftSort — walk through the build-up images in order."""
+        self.new_clean_slide("Example: SoftSort")
+
+        image_files = [
+            "images/softsort/softsort_slide1.png",
+            "images/softsort/softsort_slide2.png",
+            "images/softsort/softsort_slide3.png",
+            "images/softsort/softsort_slide4.png",
+        ]
+        # Each image is a full 16:9 build step; fit it below the slide title
+        # and let successive steps replace one another in ascending order.
+        target_h = m.config.frame_height - 1.2
+        prev = None
+        for i, path in enumerate(image_files):
+            img = m.ImageMobject(path)
+            img.height = target_h
+            img.to_edge(m.DOWN, buff=0.15)
+            if prev is None:
+                self.play(m.FadeIn(img))
+            else:
+                self.play(m.FadeOut(prev), m.FadeIn(img))
+            prev = img
+            if i < len(image_files) - 1:
+                self.next_slide()
+
+    def library_overview(self):
+        """Library overview — booktabs-style table of all SoftJAX operators."""
+        self.new_clean_slide("Library overview")
+
+        header_fs = 26
+        cell_fs = 22
+
+        def mono(text, fs=cell_fs):
+            return m.Text(text, font="Monospace", font_size=fs, color=m.BLACK)
+
+        def header(text):
+            return m.Text(text, font_size=header_fs, color=m.BLACK, weight=m.BOLD)
+
+        def checkmark():
+            return m.VGroup(
+                m.Line([-0.5, 0.0, 0], [-0.18, -0.42, 0]),
+                m.Line([-0.18, -0.42, 0], [0.5, 0.5, 0]),
+            ).set_stroke(color=m.GREEN_D, width=4).scale(0.16)
+
+        def check(text, mono_body):
+            label = mono(text) if mono_body else m.Text(
+                text, font_size=cell_fs, color=m.BLACK)
+            return m.VGroup(checkmark(), label).arrange(m.RIGHT, buff=0.16)
+
+        # --- The four operator columns ---
+        columns = [
+            ("Axiswise", ["argmin", "min", "argsort", "sort", "argquantile",
+                          "quantile", "argmedian", "median", "top_k", "rank"]),
+            ("Elementwise", ["heaviside", "round", "sign", "abs", "relu", "clip",
+                             "less", "less_equal", "equal", "not_equal", "isclose"]),
+            ("Logical", ["logical_and", "logical_or", "logical_xor",
+                         "logical_not", "any", "all"]),
+            ("Selection", ["where", "take_along_axis", "take", "choose",
+                           "dynamic_index_in_dim", "dynamic_slice_in_dim",
+                           "dynamic_slice"]),
+        ]
+        col_groups = []
+        for head, items in columns:
+            col = m.VGroup(header(head), *[mono(it) for it in items])
+            col.arrange(m.DOWN, buff=0.20, aligned_edge=m.LEFT)
+            col_groups.append(col)
+
+        # --- The Modes / Methods column ---
+        modes_col = m.VGroup(
+            header("Modes"),
+            *[check(md, True) for md in ["smooth", "c0", "c1", "c2"]],
+            header("Methods"),
+            *[check(mt, False) for mt in ["Optimal Transport", "SoftSort",
+                                          "NeuralSort", "FastSoftSort",
+                                          "SmoothSort", "Sorting Network"]],
+        ).arrange(m.DOWN, buff=0.20, aligned_edge=m.LEFT)
+        # Breathing room above the "Methods" sub-header.
+        modes_col[5].shift(0.12 * m.DOWN)
+        for cell in modes_col[6:]:
+            cell.shift(0.12 * m.DOWN)
+
+        all_cols = col_groups + [modes_col]
+        table = m.VGroup(*all_cols).arrange(m.RIGHT, buff=0.6, aligned_edge=m.UP)
+
+        # --- Booktabs rules ---
+        left = table.get_left()[0] - 0.12
+        right = table.get_right()[0] + 0.12
+        top_y = table.get_top()[1] + 0.14
+        mid_y = min(c[0].get_bottom()[1] for c in all_cols) - 0.07
+        bot_y = table.get_bottom()[1] - 0.14
+
+        def hline(y, w):
+            return m.Line([left, y, 0], [right, y, 0], color=m.BLACK, stroke_width=w)
+
+        rules = m.VGroup(hline(top_y, 3.0), hline(mid_y, 1.5), hline(bot_y, 3.0))
+
+        # Keep the table compact and centred so there is a band of whitespace
+        # above (for the Modes annotation) and below (for the Elementwise one).
+        content = m.VGroup(table, rules)
+        max_h = 4.0
+        max_w = m.config.frame_width - 0.9
+        scale = min(max_h / content.height, max_w / content.width, 1.0)
+        if scale < 1.0:
+            content.scale(scale)
+        content.move_to([0, 0.45, 0])
+
+        self.play(
+            m.Create(rules),
+            m.LaggedStart(*[m.FadeIn(c[0], shift=0.15 * m.DOWN) for c in all_cols],
+                          lag_ratio=0.15),
+        )
+        self.play(
+            m.LaggedStart(*[m.FadeIn(m.VGroup(*c[1:]), shift=0.15 * m.UP)
+                            for c in all_cols], lag_ratio=0.12),
+        )
+        self.next_slide()
+
+        # --- Annotation 1: arrow from a note down to the Modes column ---
+        modes_note = m.Text(
+            "Appendix: Proof of smoothness of p-norm regularized projections.",
+            font_size=18, color=m.BLACK, line_spacing=0.85,
+        ).to_corner(m.UR, buff=0.5)
+        m_end = modes_col[0].get_top() + 0.14 * m.UP
+        modes_arrow = m.Arrow(
+            m_end + 0.6 * m.UP, m_end,
+            color=m.BLACK, buff=0.0, stroke_width=3,
+            max_tip_length_to_length_ratio=0.35,
+        )
+        self.play(m.FadeIn(modes_note, shift=0.15 * m.DOWN))
+        self.play(m.GrowArrow(modes_arrow))
+        self.next_slide()
+
+        # --- Annotation 2: arrow from a note up into the Elementwise column ---
+        elem_note = m.Text(
+            "Appendix: Elementwise operators are special case of axiswise operators.",
+            font_size=18, color=m.BLACK, line_spacing=0.85,
+        )
+        elem_col = col_groups[1]
+        elem_note.next_to(elem_col, m.DOWN, buff=1.05)
+        elem_note.set_x(elem_col.get_x())
+        e_end = elem_col.get_bottom() + 0.14 * m.DOWN
+        elem_arrow = m.Arrow(
+            e_end + 0.6 * m.DOWN, e_end,
+            color=m.BLACK, buff=0.0, stroke_width=3,
+            max_tip_length_to_length_ratio=0.35,
+        )
+        self.play(m.FadeIn(elem_note, shift=0.15 * m.UP))
+        self.play(m.GrowArrow(elem_arrow))
