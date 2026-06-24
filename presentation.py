@@ -1339,7 +1339,7 @@ class Presentation(ThreeDSlide):
         orthographically projected onto a gridded camera plane (projection rays
         connect the vertices); an edge-distance test at a sample point hints at
         the (non-)differentiable coverage that SoftJAX makes smooth."""
-        self.new_clean_slide("Differentiable rendering")
+        self.new_clean_slide("Example: Differentiable rendering")
         self.set_camera_orientation(phi=72 * m.DEGREES, theta=-48 * m.DEGREES)
         self.add_fixed_in_frame_mobjects(self.slide_title, self.slide_number)
 
@@ -1443,21 +1443,34 @@ class Presentation(ThreeDSlide):
             "Check if triangle covers pixel",
             weight=m.BOLD, font_size=26, color=m.BLACK,
         )
-        dist_label = m.Text("Distance-based:", font_size=24, color=m.BLACK)
-        code_text = m.Paragraph(
-            "d_min = jnp.min(jnp.array([d1, d2, d3]))",
-            "inside = ( min_dist > 0.0 )",
-            font="Monospace", font_size=18, color=m.BLACK, line_spacing=0.6,
-        )
-        code_bg = m.SurroundingRectangle(
-            code_text, buff=0.22, corner_radius=0.1, color=m.GREY,
-            stroke_width=0.0, fill_color=CODE_BG_COLOR, fill_opacity=1.0,
-        )
-        code_box = m.VGroup(code_bg, code_text)
-        lower = m.VGroup(dist_label, code_box).arrange(
-            m.DOWN, buff=0.25, aligned_edge=m.LEFT)
+        def code_block(*lines):
+            text = m.Paragraph(
+                *lines, font="Monospace", font_size=18, color=m.BLACK,
+                line_spacing=0.6,
+            )
+            bg = m.SurroundingRectangle(
+                text, buff=0.22, corner_radius=0.1, color=m.GREY,
+                stroke_width=0.0, fill_color=CODE_BG_COLOR, fill_opacity=1.0,
+            )
+            return m.VGroup(bg, text)
+
+        dist_section = m.VGroup(
+            m.Text("Distance-based:", font_size=24, color=m.BLACK),
+            code_block(
+                "d_min = jnp.min(jnp.array([d1, d2, d3]))",
+                "inside = ( min_dist > 0.0 )",
+            ),
+        ).arrange(m.DOWN, buff=0.2, aligned_edge=m.LEFT)
+        area_section = m.VGroup(
+            m.Text("Area-based:", font_size=24, color=m.BLACK),
+            code_block("inside = jnp.all( [a1 > 0.0, a2 > 0.0, a3 > 0] )"),
+        ).arrange(m.DOWN, buff=0.2, aligned_edge=m.LEFT)
+        lower = m.VGroup(dist_section, area_section).arrange(
+            m.DOWN, buff=0.45, aligned_edge=m.LEFT)
         right_panel = m.VGroup(panel_title, lower).arrange(
             m.DOWN, buff=0.55, aligned_edge=m.LEFT)
+        if right_panel.width > 6.6:
+            right_panel.scale(6.6 / right_panel.width)
         right_panel.to_edge(m.RIGHT, buff=0.5).shift(0.3 * m.UP)
         self.add_fixed_in_frame_mobjects(right_panel)
         self.remove(right_panel)
@@ -1481,13 +1494,14 @@ class Presentation(ThreeDSlide):
         self.next_slide()
 
         # Beat 4: slide the point through the plane; the orthogonal distance
-        # lines stretch and shrink, and flip red (inside) <-> green (outside).
+        # lines stretch and shrink, and flip per edge red (inside) <-> green
+        # (outside).
         waypoints = [
-            P,                          # inside  -> red
-            np.array([1.4, 0.9]),       # outside (upper right) -> green
-            np.array([0.0, 0.2]),       # inside  -> red
-            np.array([-0.3, -1.4]),     # outside (below) -> green
-            P,                          # back inside -> red
+            P,                          # inside
+            np.array([1.4, 0.9]),       # outside (upper right)
+            np.array([0.0, 0.2]),       # inside
+            np.array([-0.3, -1.4]),     # outside (below)
+            P,                          # back inside
         ]
 
         def pos(s):
@@ -1520,6 +1534,53 @@ class Presentation(ThreeDSlide):
         self.add(dyn_lines, dyn_point)
         # Bring in the text panel alongside the moving-point animation.
         self.play(m.FadeIn(right_panel), run_time=0.6)
+        self.play(tracker.animate.set_value(1.0), run_time=7, rate_func=m.linear)
+        self.next_slide()
+
+        # Beat 5: keep the same sweep, but now shade the signed-area
+        # (barycentric) sub-triangle of each edge with the point -- green when
+        # the area is positive, red when negative. Both ends of the path are P,
+        # so resetting the sweep doesn't make the point jump.
+        # Draw the shaded areas a hair toward the camera (+x is the plane normal
+        # facing the viewer) so they sit in front of the projected triangle;
+        # stagger per edge so overlapping areas don't z-fight.
+        def front(point3d, k):
+            return point3d + np.array([0.05 + 0.015 * k, 0.0, 0.0])
+
+        def make_point_front():
+            return m.Dot3D(
+                on_plane(pos(tracker.get_value())) + np.array([0.12, 0.0, 0.0]),
+                radius=0.07, color=m.BLACK)
+
+        def make_areas():
+            p = pos(tracker.get_value())
+            # Shade only one edge's signed-area sub-triangle (the upper-right
+            # edge b-c, which the sweep crosses, so the colour still flips).
+            A, B = b, c
+            # cross2(B-A, p-A) is twice the signed area of triangle (A,B,p).
+            col = VALID_COLOR if cross2(B - A, p - A) > 0 else INVALID_COLOR
+            return m.VGroup(m.Polygon(
+                front(on_plane(A), 0), front(on_plane(B), 0), front(on_plane(p), 0),
+                stroke_color=col, stroke_width=1.5,
+                fill_color=col, fill_opacity=0.5,
+            ))
+
+        # Reset the sweep and cross-fade the distance lines into the shaded
+        # signed areas (drop the updaters first so FadeOut can take effect).
+        tracker.set_value(0.0)
+        dyn_lines.clear_updaters()
+        dyn_point.clear_updaters()
+        static_areas = make_areas()
+        static_pt = make_point_front()
+        self.play(
+            m.FadeOut(dyn_lines), m.FadeOut(dyn_point),
+            m.FadeIn(static_areas), m.FadeIn(static_pt),
+        )
+        # Hand over to the live area mobjects (identical at s=0) and sweep again.
+        dyn_areas = m.always_redraw(make_areas)
+        dyn_point2 = m.always_redraw(make_point_front)
+        self.remove(static_areas, static_pt)
+        self.add(dyn_areas, dyn_point2)
         self.play(tracker.animate.set_value(1.0), run_time=7, rate_func=m.linear)
 
     def thanks(self):
