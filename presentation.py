@@ -6,13 +6,13 @@ from functools import partial, wraps
 from typing import ParamSpec
 
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 import manim as m
-from manim_slides import Slide
+from manim_slides import Slide, ThreeDSlide
 import numpy as np
 import softjax as sj
 from jaxtyping import Array, Bool, Int
-from manim_slides import Slide
 from PIL import Image
 import plotly.graph_objects as go
 from plotly.colors import convert_to_RGB_255
@@ -134,7 +134,7 @@ def fig_to_mobject(
     return wrapper
 
 
-class Presentation(Slide):
+class Presentation(ThreeDSlide):
     skip_reversing = True
 
     # ------------------------------------------------------------------ #
@@ -209,15 +209,8 @@ class Presentation(Slide):
         #self.next_slide()
         self.sorting_benchmark()
         self.next_slide()
-        #self.relu()
-        #self.next_slide()
-        #self.argmax()
-        #self.next_slide()
-        #self.sort()
-        #self.next_slide()
-        #self.sorting_algos()
-        #self.next_slide()
-        #self.benchmarks()
+        self.straight_through()
+        self.next_slide()
 
     def title(self):
         # Title slide: plain text (no LaTeX needed) laid out with relative
@@ -1039,3 +1032,147 @@ class Presentation(Slide):
 
         self.play(m.FadeIn(heading, shift=0.2 * m.DOWN))
         self.play(m.FadeIn(plot, shift=0.2 * m.UP))
+
+    def straight_through(self):
+        """Straight-through estimation: the trick (left) + a plot (right) shown
+        top-down as the 2D hard relu, then panned to isometric and swapped for
+        the 3D surface f(x,y) = y * relu_st(x). Both carry their normalized
+        jax.grad field as black arrows in the X-Y plane."""
+        self.new_clean_slide("Straight-through estimation")
+
+        # Start looking straight down the z-axis so the surface reads like a 2D
+        # heat map. The slide title / number live in the canvas; pin them (and
+        # the left-hand text) to the frame so the camera pan never tilts them.
+        self.set_camera_orientation(phi=0, theta=-90 * m.DEGREES)
+        self.add_fixed_in_frame_mobjects(self.slide_title, self.slide_number)
+
+        # ---------------- Upper-left: the STE trick box ------------------
+        formula = m.MathTex(
+            r"f_{\text{STE}}(x) = \operatorname{sg}(f(x)) + f_{\tau}(x)"
+            r" - \operatorname{sg}(f_{\tau}(x))",
+            font_size=28,
+        )
+        formula_box = m.SurroundingRectangle(
+            formula, buff=0.3, corner_radius=0.15,
+            color=SOFT_MODES[0][1], stroke_width=2.5,
+        )
+        boxed = m.VGroup(formula, formula_box)
+        if boxed.width > 5.3:
+            boxed.scale(5.3 / boxed.width)
+        # Caption tag on the box's upper-left corner (not bold).
+        trick_tag = m.Text(
+            "Straight-through trick", font_size=22, color=m.BLACK
+        )
+        trick_tag.next_to(boxed, m.UP, buff=0.1).align_to(boxed, m.LEFT)
+        trick = m.VGroup(trick_tag, boxed)
+        # Tuck into the upper-left corner, clear of the slide heading.
+        trick.to_corner(m.UL, buff=0.4).shift(1.0 * m.DOWN)
+
+        plot_label = m.Text(
+            'sj.relu(x, mode="hard")',
+            font="Monospace", font_size=24, color=m.BLACK,
+        ).move_to([2.9, 2.7, 0])
+        # Legend describing the in-plane gradient arrows.
+        grad_legend = m.VGroup(
+            m.Arrow(
+                m.ORIGIN, 0.55 * m.RIGHT, color=m.BLACK, buff=0.0,
+                stroke_width=3, max_tip_length_to_length_ratio=0.4,
+            ),
+            m.Text("jax.grad(f)", font="Monospace", font_size=22, color=m.BLACK),
+        ).arrange(m.RIGHT, buff=0.18).move_to([2.9, -2.7, 0])
+
+        self.add_fixed_in_frame_mobjects(trick, plot_label, grad_legend)
+        self.remove(trick, plot_label, grad_legend)
+
+        # ---------------------- Right: the 3D surface --------------------
+        axes = m.ThreeDAxes(
+            x_range=[-2, 2, 1], y_range=[-2, 2, 1], z_range=[-4, 4, 2],
+            x_length=4.5, y_length=4.5, z_length=3.0,
+            axis_config=dict(color=m.GREY_D, stroke_width=2),
+            tips=False,
+        ).shift(2.6 * m.RIGHT)
+
+        # The two functions: the 2D (top-down) view shows the plain hard relu;
+        # the 3D (isometric) view shows y * relu_st(x). Both evaluated directly
+        # through softjax.
+        def relu_z(u, v):
+            return float(sj.relu(jnp.asarray(u, dtype=jnp.float32), mode="hard"))
+
+        def saddle_z(u, v):
+            return float(v) * float(
+                sj.relu_st(jnp.asarray(u, dtype=jnp.float32), mode="hard")
+            )
+
+        def make_surface(zfun, zmax):
+            surf = m.Surface(
+                lambda u, v: axes.c2p(u, v, zfun(u, v)),
+                u_range=[-2, 2], v_range=[-2, 2],
+                resolution=(24, 24),
+                fill_opacity=0.95, stroke_width=0.8, stroke_color=m.GREY,
+            )
+            # coolwarm: negative -> red, zero -> grey, positive -> blue.
+            surf.set_fill_by_value(
+                axes=axes,
+                colorscale=[(m.RED, -zmax), (m.GREY, 0.0), (m.BLUE, zmax)],
+                axis=2,
+            )
+            return surf
+
+        # jax.grad of each function, sampled on a grid and drawn as black,
+        # unit-length (normalized) arrows lying flat (z = 0) in the X-Y plane.
+        relu_grad = jax.grad(lambda p: sj.relu(p[0], mode="hard"))
+        saddle_grad = jax.grad(lambda p: p[1] * sj.relu_st(p[0], mode="hard"))
+
+        def make_grad_field(grad_fn, arrow_len=0.45):
+            arrows = m.VGroup()
+            for x in np.linspace(-1.5, 1.5, 7):
+                for y in np.linspace(-1.5, 1.5, 5):
+                    g = np.asarray(grad_fn(jnp.asarray([x, y], dtype=jnp.float32)))
+                    mag = float((g[0] ** 2 + g[1] ** 2) ** 0.5)
+                    if mag < 1e-3:
+                        continue
+                    ux, uy = float(g[0]) / mag, float(g[1]) / mag
+                    start = axes.c2p(x, y, 0.0)
+                    end = axes.c2p(x + arrow_len * ux, y + arrow_len * uy, 0.0)
+                    arrows.add(
+                        m.Arrow(
+                            start, end, color=m.BLACK, buff=0.0,
+                            stroke_width=3, tip_length=0.14,
+                            max_tip_length_to_length_ratio=0.4,
+                        )
+                    )
+            return arrows
+
+        surface = make_surface(relu_z, 2.0)
+        grad_field = make_grad_field(relu_grad)
+
+        # Beat 1: top-down reveal of the 2D hard-relu plot.
+        self.play(
+            m.FadeIn(trick),
+            m.FadeIn(plot_label),
+            m.FadeIn(grad_legend),
+            m.Create(axes),
+        )
+        self.play(m.FadeIn(surface), m.FadeIn(grad_field))
+        self.next_slide()
+
+        # Beat 2: pan to an isometric viewpoint.
+        self.move_camera(phi=65 * m.DEGREES, theta=-50 * m.DEGREES, run_time=2.0)
+        self.next_slide()
+
+        # Beat 3: now in 3D, swap in f(x,y) = y * relu_st(x) with its own
+        # (normalized) jax.grad field.
+        saddle = make_surface(saddle_z, 4.0)
+        saddle_field = make_grad_field(saddle_grad)
+        new_label = m.Text(
+            'f(x,y) = y * sj.relu_st(x, mode="hard")',
+            font="Monospace", font_size=24, color=m.BLACK,
+        ).move_to([2.9, 2.7, 0])
+        self.add_fixed_in_frame_mobjects(new_label)
+        self.remove(new_label)
+        self.play(
+            m.ReplacementTransform(surface, saddle),
+            m.ReplacementTransform(grad_field, saddle_field),
+            m.FadeOut(plot_label),
+            m.FadeIn(new_label),
+        )
