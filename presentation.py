@@ -211,6 +211,8 @@ class Presentation(ThreeDSlide):
         #self.next_slide()
         self.straight_through()
         self.next_slide()
+        self.thanks()
+        self.next_slide()
 
     def title(self):
         # Title slide: plain text (no LaTeX needed) laid out with relative
@@ -1132,25 +1134,28 @@ class Presentation(ThreeDSlide):
         label_relu_st = m.Text(
             'sj.st(sj.relu)(x)',
             font="Monospace", font_size=24, color=m.BLACK,
-        ).move_to([3.4, 2.3, 0])
+            t2c={"sj.st": SOFT_MODES[0][1]},
+        ).move_to([3.4, 1.95, 0])
         label_saddle = m.Text(
             'y * sj.st(sj.relu)(x)',
             font="Monospace", font_size=24, color=m.BLACK,
-        ).move_to([3.4, 2.3, 0])
+            t2c={"sj.st": SOFT_MODES[0][1]},
+        ).move_to([3.4, 1.95, 0])
         # The last beat's title is a code box (replaces the text title) showing
         # the straight-through of the whole product.
         code_text = m.Paragraph(
             "@sj.st",
             "def f(x, y):",
             "    return y * sj.relu(x)",
-            font="Monospace", font_size=20, color=m.BLACK, line_spacing=0.6,
+            font="Monospace", font_size=24, color=m.BLACK, line_spacing=0.6,
+            t2c={"@sj.st": SOFT_MODES[0][1]},
         )
         code_bg = m.SurroundingRectangle(
             code_text, buff=0.22, corner_radius=0.1,
             color=m.GREY, stroke_width=0.0,
             fill_color=CODE_BG_COLOR, fill_opacity=1.0,
         )
-        code_box = m.VGroup(code_bg, code_text).move_to([3.5, 2.4, 0])
+        code_box = m.VGroup(code_bg, code_text).move_to([3.5, 2.3, 0])
         # Legend describing the in-plane gradient arrows: to the right of the
         # plot, slightly below the x-axis.
         grad_legend = m.VGroup(
@@ -1159,7 +1164,7 @@ class Presentation(ThreeDSlide):
                 stroke_width=2, max_tip_length_to_length_ratio=0.4,
             ),
             m.Text("gradients", font="Monospace", font_size=18, color=m.BLACK),
-        ).arrange(m.RIGHT, buff=0.18).move_to([1.06, -1.3, 0])
+        ).arrange(m.RIGHT, buff=0.18).move_to([1.06, -1.6, 0])
 
         self.add_fixed_in_frame_mobjects(
             header, trick, product_rule, pitfall_note, legend_2d, label_relu_st,
@@ -1326,3 +1331,20 @@ class Presentation(ThreeDSlide):
             m.FadeOut(label_saddle),
             m.FadeIn(code_box),
         )
+
+    def thanks(self):
+        """Closing slide: a centred thank-you above a closing image."""
+        # Wipe the 3D scene, then return the camera to a flat, front-on view so
+        # the 2D content renders without perspective distortion.
+        self.new_clean_slide("")
+        self.move_camera(phi=0, theta=-90 * m.DEGREES, run_time=1.0)
+
+        thanks_text = m.Text(
+            "Thanks for all the fish.", weight=m.BOLD, font_size=TITLE_FONT_SIZE,
+        ).to_edge(m.UP, buff=1.2)
+
+        image = m.ImageMobject("images/thanks.png")
+        image.width = min(11.0, m.config.frame_width - 1.5)
+        image.next_to(thanks_text, m.DOWN, buff=0.7)
+
+        self.play(m.FadeIn(thanks_text), m.FadeIn(image))
