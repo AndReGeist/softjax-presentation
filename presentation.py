@@ -37,11 +37,6 @@ VALID_COLOR = "#28C137"
 IMAGE_COLOR = "#636463"
 X_COLOR = m.DARK_BROWN
 
-# Hard (discrete) vs. soft (differentiable) branch colors for the argmax slide.
-HARD_GREEN = "#1A8A6E"
-SOFT_MAGENTA = "#C0399A"
-NEUTRAL_BAR = "#6C7A89"
-
 # Soft relaxation modes -> colors (used in the heaviside / boolean slide).
 # Every soft operator in SoftJAX exposes these continuity modes via `mode=`.
 HARD_COLOR = m.BLACK
@@ -206,10 +201,12 @@ class Presentation(Slide):
         self.next_slide()
         self.comparisons_and_logic()
         self.next_slide()
+        self.axiswise()
+        self.next_slide()
         #self.relu()
         #self.next_slide()
-        self.argmax()
-        self.next_slide()
+        #self.argmax()
+        #self.next_slide()
         #self.sort()
         #self.next_slide()
         #self.sorting_algos()
@@ -673,318 +670,199 @@ class Presentation(Slide):
         # Selection as an expectation over a Bernoulli choice.
         self.play(m.Write(selection), m.Create(selection_box))
 
-    # ------------------------------------------------------------------ #
-    # Hard vs. soft argmax & indexing
-    # ------------------------------------------------------------------ #
+    def axiswise(self):
+        """Indexing as an axiswise operator: standard jax vs. SoftJAX hard/soft."""
+        self.new_clean_slide("Axiswise operators")
+        accent = SOFT_MODES[0][1]
 
-    def _bar(self, value, x, baseline_y, color, *, unit, width, opacity=1.0):
-        """A single value-bar growing upward from `baseline_y` at position `x`."""
-        h = max(float(value) * unit, 1e-3)
-        bar = m.Rectangle(
-            width=width,
-            height=h,
-            fill_color=color,
-            fill_opacity=opacity,
-            stroke_color=color,
-            stroke_width=2,
-        )
-        bar.move_to([x, baseline_y + h / 2.0, 0.0])
-        return bar
+        def code_box(code_string):
+            return m.Code(
+                code_string=code_string,
+                language="python",
+                add_line_numbers=False,
+                formatter_style="default",
+                background_config=dict(fill_color=CODE_BG_COLOR, stroke_width=0),
+            ).scale(0.7)
 
-    def argmax(self):
-        self.new_clean_slide("Indexing an array")
-
-        # --- Values and the SoftJAX-computed soft selection (no reimplementation) ---
-        x_vals = [0.1, 0.4, 0.8]
-        arr = jnp.asarray(x_vals)
-        soft_index = sj.argmax(arr, axis=0, softness=0.1, mode="smooth")
-        weights = [float(w) for w in np.asarray(soft_index)]
-        y_soft = float(sj.dynamic_index_in_dim(arr, soft_index, axis=0, keepdims=False))
-        hard_idx = int(jnp.argmax(arr))
-        y_hard = x_vals[hard_idx]
-
-        unit = 3.2
-        bar_w = 0.85
-        baseline_y = -1.2
-        xs = [-2.4, 0.0, 2.4]
-        res_x = 3.9  # where plucked / weighted results land
-
-        def bar(value, x, color, opacity=1.0):
-            return self._bar(
-                value, x, baseline_y, color, unit=unit, width=bar_w, opacity=opacity
-            )
-
-        # ------------------------- Scene 1: the array ------------------------- #
-        axis = m.Line(
-            [-3.6, baseline_y, 0], [3.6, baseline_y, 0], color=m.GREY, stroke_width=3
-        )
-        bars = [bar(v, x, NEUTRAL_BAR) for v, x in zip(x_vals, xs)]
-        val_labels = [
-            m.Text(f"{v:.1f}", font="monospace", font_size=26, color=m.BLACK).next_to(
-                b, m.UP, buff=0.15
-            )
-            for v, b in zip(x_vals, bars)
-        ]
-        idx_labels = [
-            m.Text(str(i), font="monospace", font_size=26, color=m.GREY).move_to(
-                [x, baseline_y - 0.4, 0]
-            )
-            for i, x in enumerate(xs)
-        ]
-        arr_label = m.Text(
-            "x = [0.1, 0.4, 0.8]", font="monospace", font_size=30, color=m.BLACK
-        ).move_to([0, baseline_y - 1.15, 0])
-
-        self.play(m.Create(axis))
-        self.play(
-            m.LaggedStart(
-                *[m.GrowFromEdge(b, m.DOWN) for b in bars], lag_ratio=0.3
+        # Comments removed from the code; the result is shown to the right
+        # of each box via an arrow + illustration instead.
+        sections = [
+            (
+                "Standard indexing",
+                "x = jnp.array([0.1, 0.4, 0.8])\n"
+                "idx = jnp.argmax(x)\n"
+                "y = x[idx]",
             ),
-            m.LaggedStart(
-                *[m.FadeIn(l, shift=0.2 * m.UP) for l in val_labels], lag_ratio=0.3
+            (
+                'SoftJax, mode="hard"',
+                'hard_idx = sj.argmax(x, mode="hard")\n'
+                "y = sj.dynamic_index_in_dim(x, hard_idx)",
             ),
-            run_time=1.6,
-        )
-        self.play(m.FadeIn(m.VGroup(*idx_labels)), m.FadeIn(arr_label))
-        self.next_slide()
+            (
+                'SoftJax, mode="soft"',
+                "soft_idx = sj.argmax(x)\n"
+                "y = sj.dynamic_index_in_dim(x, soft_idx)",
+            ),
+        ]
 
-        # ------------------------- Scene 2: hard argmax ----------------------- #
-        self.play(self._next_slide_title_animation("Hard argmax"))
+        blocks = []
+        for label_text, code_string in sections:
+            label = m.Text(label_text, font_size=28, color=m.BLACK)
+            code = code_box(code_string)
+            block = m.VGroup(label, code).arrange(
+                m.DOWN, buff=0.2, aligned_edge=m.LEFT
+            )
+            blocks.append(block)
 
-        spot = m.SurroundingRectangle(
-            bars[0], color=HARD_GREEN, stroke_width=5, buff=0.12, corner_radius=0.08
+        column = (
+            m.VGroup(*blocks)
+            .arrange(m.DOWN, buff=0.85, aligned_edge=m.LEFT)
+            .to_edge(m.LEFT, buff=0.9)
+            .to_edge(m.UP, buff=1.6)
         )
-        self.play(m.Create(spot), run_time=0.4)
-        for i in (1, hard_idx):
-            self.play(
-                m.Transform(
-                    spot,
-                    m.SurroundingRectangle(
-                        bars[i],
-                        color=HARD_GREEN,
-                        stroke_width=5,
-                        buff=0.12,
-                        corner_radius=0.08,
-                    ),
-                ),
-                run_time=0.35,
+
+        def result_arrow(code):
+            tail = code.get_right() + 0.2 * m.RIGHT
+            return m.Arrow(
+                tail, tail + 1.1 * m.RIGHT, buff=0.0,
+                color=m.BLACK, stroke_width=4,
+                max_tip_length_to_length_ratio=0.25,
             )
 
-        argmax_lbl = m.Tex(
-            r"argmax $\rightarrow$ 2", color=HARD_GREEN, font_size=40
-        ).move_to([0, 2.4, 0])
-        # Snap: pick wins green, the others dim to grey.
-        self.play(
-            bars[hard_idx].animate.set_fill(HARD_GREEN, 1.0).set_stroke(HARD_GREEN),
-            val_labels[hard_idx].animate.set_color(HARD_GREEN),
-            *[
-                bars[i].animate.set_fill(m.GREY, 0.35).set_stroke(m.GREY)
-                for i in range(len(bars))
-                if i != hard_idx
-            ],
-            *[
-                val_labels[i].animate.set_color(m.GREY)
-                for i in range(len(bars))
-                if i != hard_idx
-            ],
-            m.FadeIn(argmax_lbl, shift=0.2 * m.DOWN),
+        # ---- Section 1 illustration: plain index / value readout ----
+        arrow1 = result_arrow(blocks[0][1])
+        result1 = m.Text(
+            "Index: 2, Value: 0.8", font_size=28, color=m.BLACK
+        ).next_to(arrow1, m.RIGHT, buff=0.3)
+
+        # ---- Section 2 illustration: one-hot bar plot . column vector = 0.8 ----
+        def one_hot_bars(values):
+            unit, bw = 0.7, 0.3
+            bars = m.VGroup(
+                *[
+                    m.Rectangle(
+                        width=bw, height=max(v * unit, 0.02),
+                        fill_color=accent, fill_opacity=1.0,
+                        stroke_width=1.0, stroke_color=m.BLACK,
+                    )
+                    for v in values
+                ]
+            ).arrange(m.RIGHT, buff=0.34, aligned_edge=m.DOWN)
+            baseline = m.Line(
+                bars.get_corner(m.DL) + 0.06 * m.LEFT,
+                bars.get_corner(m.DR) + 0.06 * m.RIGHT,
+                color=m.GREY, stroke_width=2,
+            )
+            labels = m.VGroup(
+                *[
+                    m.MathTex(str(v), font_size=20, color=m.BLACK).next_to(
+                        bars[i], m.DOWN, buff=0.16
+                    )
+                    for i, v in enumerate(values)
+                ]
+            )
+            return m.VGroup(bars, baseline, labels)
+
+        bars = one_hot_bars([0, 0, 1])
+        dot = m.MathTex(r"\cdot", font_size=72, color=m.BLACK)
+        colvec = m.Matrix(
+            [["0.1"], ["0.4"], ["0.8"]], bracket_h_buff=0.12
+        ).scale(0.55).set_color(m.BLACK)
+        eq = m.MathTex("=", font_size=56, color=m.BLACK)
+        val = m.MathTex("0.8", font_size=44, color=m.BLACK)
+        illus2 = m.VGroup(bars, dot, colvec, eq, val).arrange(m.RIGHT, buff=0.32)
+        arrow2 = result_arrow(blocks[1][1])
+        illus2.next_to(arrow2, m.RIGHT, buff=0.3)
+
+        # Coding-font captions naming the two operands.
+        bars_label = m.Text(
+            "hard_idx", font="Monospace", font_size=22, color=m.BLACK
+        ).next_to(bars, m.UP, buff=0.25)
+        colvec_label = m.Text(
+            "array", font="Monospace", font_size=22, color=m.BLACK
+        ).next_to(colvec, m.UP, buff=0.25)
+
+        # Small sketchy arrow + caption pointing at the selected value.
+        mean_text = m.Text("Mean value", font_size=22, color=m.BLACK).next_to(
+            val, m.UP, buff=0.7
+        )
+        sketch = m.CurvedArrow(
+            mean_text.get_bottom() + 0.05 * m.DOWN,
+            val.get_top() + 0.06 * m.UP,
+            angle=-m.PI / 3, color=m.BLACK, stroke_width=2.5, tip_length=0.16,
         )
 
-        # Pluck bar 2 out via dynamic_index_in_dim -> result y = 0.8.
-        pick = bars[hard_idx].copy()
-        hard_result = bar(y_hard, res_x, HARD_GREEN)
-        # Arc over the bars so the label never overlaps them.
-        pluck_arrow = m.CurvedArrow(
-            bars[hard_idx].get_top() + 0.1 * m.UP,
-            hard_result.get_top() + 0.1 * m.UP,
-            color=HARD_GREEN,
-            stroke_width=4,
-            angle=-m.TAU / 6,
-        )
-        dyn_lbl = m.Text(
-            "dynamic_index_in_dim", font="monospace", font_size=22, color=HARD_GREEN
-        ).move_to([3.1, 2.05, 0])
-        hard_y_label = m.Text(
-            "y = 0.8", font="monospace", font_size=28, color=HARD_GREEN
-        ).next_to(hard_result, m.DOWN, buff=0.25)
+        # ---- Section 3 illustration: soft probabilities . column vector = 0.78 ----
+        bars3 = one_hot_bars([0.004, 0.042, 0.953])
+        dot3 = m.MathTex(r"\cdot", font_size=72, color=m.BLACK)
+        colvec3 = m.Matrix(
+            [["0.1"], ["0.4"], ["0.8"]], bracket_h_buff=0.12
+        ).scale(0.55).set_color(m.BLACK)
+        eq3 = m.MathTex("=", font_size=56, color=m.BLACK)
+        val3 = m.MathTex("0.78", font_size=44, color=m.BLACK)
+        illus3 = m.VGroup(bars3, dot3, colvec3, eq3, val3).arrange(m.RIGHT, buff=0.32)
+        arrow3 = result_arrow(blocks[2][1])
+        illus3.next_to(arrow3, m.RIGHT, buff=0.3)
 
-        self.play(m.Create(pluck_arrow), m.FadeIn(dyn_lbl))
-        self.play(pick.animate.move_to(hard_result), run_time=0.9)
-        self.play(m.FadeIn(hard_y_label))
-
-        # "not differentiable" with a struck-through nabla.
-        nabla = m.MathTex(r"\nabla", color=m.RED, font_size=40)
-        strike = m.Line(
-            nabla.get_corner(m.DL), nabla.get_corner(m.UR), color=m.RED, stroke_width=4
+        bars_label3 = m.Text(
+            "soft_idx", font="Monospace", font_size=22, color=m.BLACK
+        ).next_to(bars3, m.UP, buff=0.25)
+        colvec_label3 = m.Text(
+            "array", font="Monospace", font_size=22, color=m.BLACK
+        ).next_to(colvec3, m.UP, buff=0.25)
+        mean_text3 = m.Text(
+            "Mean value", font_size=22, color=m.BLACK
+        ).next_to(val3, m.UP, buff=0.7)
+        sketch3 = m.CurvedArrow(
+            mean_text3.get_bottom() + 0.05 * m.DOWN,
+            val3.get_top() + 0.06 * m.UP,
+            angle=-m.PI / 3, color=m.BLACK, stroke_width=2.5, tip_length=0.16,
         )
-        not_diff = m.Text("not differentiable", font_size=24, color=m.RED)
-        hard_cap = m.VGroup(m.VGroup(nabla, strike), not_diff).arrange(
-            m.RIGHT, buff=0.2
-        ).next_to(hard_y_label, m.DOWN, buff=0.3)
-        self.play(m.Write(not_diff), m.Create(m.VGroup(nabla, strike)))
 
-        hard_only = m.VGroup(
-            spot, argmax_lbl, pick, pluck_arrow, dyn_lbl, hard_y_label, hard_cap
+        content = m.VGroup(
+            column, arrow1, result1, arrow2, illus2,
+            bars_label, colvec_label, mean_text, sketch,
+            arrow3, illus3, bars_label3, colvec_label3, mean_text3, sketch3,
         )
+        # Defensive: shrink + recenter if the whole layout overflows the frame.
+        max_h = m.config.frame_height - 1.3
+        max_w = m.config.frame_width - 1.0
+        scale = min(max_h / content.height, max_w / content.width, 1.0)
+        if scale < 1.0:
+            content.scale(scale)
+        content.to_edge(m.LEFT, buff=0.9).to_edge(m.UP, buff=1.4)
+
+        # ---- Beat 1: standard indexing, then its index/value readout ----
+        label0, code0 = blocks[0]
+        self.play(m.FadeIn(label0, shift=0.2 * m.DOWN))
+        self.play(m.FadeIn(code0, shift=0.2 * m.DOWN))
+        self.next_slide()
+        self.play(m.GrowArrow(arrow1), m.FadeIn(result1, shift=0.2 * m.RIGHT))
         self.next_slide()
 
-        # ------------------------- Scene 3: soft argmax ----------------------- #
+        # ---- Beat 2: hard mode, then one-hot . column-vector = value ----
+        label1, code1 = blocks[1]
+        self.play(m.FadeIn(label1, shift=0.2 * m.DOWN))
+        self.play(m.FadeIn(code1, shift=0.2 * m.DOWN))
+        self.next_slide()
         self.play(
-            m.FadeOut(hard_only),
-            self._next_slide_title_animation("Soft argmax"),
-            *[
-                bars[i].animate.set_fill(NEUTRAL_BAR, 1.0).set_stroke(NEUTRAL_BAR)
-                for i in range(len(bars))
-            ],
-            *[val_labels[i].animate.set_color(m.BLACK) for i in range(len(bars))],
+            m.GrowArrow(arrow2),
+            m.FadeIn(illus2, shift=0.2 * m.RIGHT),
+            m.FadeIn(bars_label, shift=0.1 * m.DOWN),
+            m.FadeIn(colvec_label, shift=0.1 * m.DOWN),
         )
-
-        # Translucent magenta probability mass on each bar (opacity == weight).
-        overlays = [
-            bar(v, x, SOFT_MAGENTA, opacity=w)
-            for v, x, w in zip(x_vals, xs, weights)
-        ]
-        w_labels = [
-            m.Text(f"{w:.3f}", font="monospace", font_size=24, color=SOFT_MAGENTA)
-            .next_to(val_labels[i], m.UP, buff=0.18)
-            for i, w in enumerate(weights)
-        ]
-
-        sigma_tr = m.ValueTracker(0.0)
-        sigma_num = m.DecimalNumber(
-            0.0, num_decimal_places=1, font_size=34, color=SOFT_MAGENTA
-        )
-        sigma_num.add_updater(lambda d: d.set_value(sigma_tr.get_value()))
-        sigma_lbl = m.MathTex(r"\sum_i w_i =", color=SOFT_MAGENTA, font_size=38)
-        sigma = m.VGroup(sigma_lbl, sigma_num).arrange(m.RIGHT, buff=0.2).move_to(
-            [0, 2.5, 0]
-        )
-        # Add the live counter so its updater runs while the mass accumulates.
-        self.add(sigma_num)
-
-        self.play(
-            m.LaggedStart(*[m.FadeIn(o) for o in overlays], lag_ratio=0.2),
-            m.LaggedStart(
-                *[m.FadeIn(w, shift=0.2 * m.UP) for w in w_labels], lag_ratio=0.2
-            ),
-            m.FadeIn(sigma_lbl),
-            sigma_tr.animate.set_value(1.0),
-            run_time=2.2,
-        )
-        sigma_num.clear_updaters()
+        self.play(m.FadeIn(mean_text, shift=0.1 * m.DOWN), m.Create(sketch))
         self.next_slide()
 
-        # ------------------------ Scene 4: weighted sum ----------------------- #
-        terms = m.VGroup(
-            m.MathTex(r"0.1\cdot 0.004", font_size=30),
-            m.MathTex("+", font_size=30),
-            m.MathTex(r"0.4\cdot 0.042", font_size=30),
-            m.MathTex("+", font_size=30),
-            m.MathTex(r"0.8\cdot 0.953", font_size=30),
-            m.MathTex("=", font_size=30),
-            m.MathTex(f"{y_soft:.2f}", color=SOFT_MAGENTA, font_size=34),
-        ).arrange(m.RIGHT, buff=0.18).move_to([-0.7, baseline_y - 1.15, 0])
-
-        soft_result = bar(y_soft, res_x, SOFT_MAGENTA)
-        soft_y_label = m.Text(
-            f"y = {y_soft:.2f}", font="monospace", font_size=28, color=SOFT_MAGENTA
-        ).next_to(soft_result, m.UP, buff=0.15)
-        expected_lbl = m.Text(
-            "(expected value)", font_size=22, color=SOFT_MAGENTA
-        ).next_to(soft_result, m.DOWN, buff=0.25)
-
-        self.play(m.FadeOut(arr_label), m.Write(terms), run_time=1.4)
-        self.play(
-            m.GrowFromEdge(soft_result, m.DOWN),
-            m.FadeIn(soft_y_label),
-            m.FadeIn(expected_lbl),
-        )
+        # ---- Beat 3: soft mode, then soft-probabilities . array = value ----
+        label2, code2 = blocks[2]
+        self.play(m.FadeIn(label2, shift=0.2 * m.DOWN))
+        self.play(m.FadeIn(code2, shift=0.2 * m.DOWN))
         self.next_slide()
-
-        # --------------------- Scene 5: side-by-side payoff ------------------- #
-        array_grp = m.VGroup(
-            axis,
-            *bars,
-            *val_labels,
-            *idx_labels,
-            *overlays,
-            *w_labels,
-            sigma,
-            terms,
-            soft_result,
-            soft_y_label,
-            expected_lbl,
-        )
         self.play(
-            m.FadeOut(array_grp), self._next_slide_title_animation("Hard vs. soft")
+            m.GrowArrow(arrow3),
+            m.FadeIn(illus3, shift=0.2 * m.RIGHT),
+            m.FadeIn(bars_label3, shift=0.1 * m.DOWN),
+            m.FadeIn(colvec_label3, shift=0.1 * m.DOWN),
         )
-
-        cmp_base = -1.4
-        # Left: hard / discrete (green).
-        h_bar = self._bar(y_hard, -3.0, cmp_base, HARD_GREEN, unit=unit, width=1.0)
-        h_title = m.Text("Hard", font_size=30, weight=m.BOLD, color=HARD_GREEN).move_to(
-            [-3.0, 2.3, 0]
-        )
-        h_val = m.Text(
-            "y = 0.8", font="monospace", font_size=28, color=HARD_GREEN
-        ).next_to(h_bar, m.UP, buff=0.2)
-        h_sub = m.Text("discrete", font_size=24, color=m.GREY).next_to(
-            h_bar, m.DOWN, buff=0.4
-        )
-        h_nabla = m.VGroup(
-            m.MathTex(r"\nabla", color=m.RED, font_size=44),
-        )
-        h_strike = m.Line(
-            h_nabla.get_corner(m.DL),
-            h_nabla.get_corner(m.UR),
-            color=m.RED,
-            stroke_width=4,
-        )
-        h_grad = m.VGroup(h_nabla, h_strike).next_to(h_sub, m.DOWN, buff=0.35)
-
-        # Right: soft / weighted (magenta).
-        s_bar = self._bar(y_soft, 3.0, cmp_base, SOFT_MAGENTA, unit=unit, width=1.0)
-        s_title = m.Text(
-            "Soft", font_size=30, weight=m.BOLD, color=SOFT_MAGENTA
-        ).move_to([3.0, 2.3, 0])
-        s_val = m.Text(
-            "y = 0.78", font="monospace", font_size=28, color=SOFT_MAGENTA
-        ).next_to(s_bar, m.UP, buff=0.2)
-        s_sub = m.Text("weighted", font_size=24, color=m.GREY).next_to(
-            s_bar, m.DOWN, buff=0.4
-        )
-        s_grad = m.MathTex(r"\nabla", color=SOFT_MAGENTA, font_size=44).next_to(
-            s_sub, m.DOWN, buff=0.35
-        )
-
-        divider = m.DashedLine(
-            [0, -3.0, 0], [0, 2.0, 0], color=m.GREY, stroke_width=2
-        )
-
-        self.play(
-            m.FadeIn(divider),
-            m.GrowFromEdge(h_bar, m.DOWN),
-            m.GrowFromEdge(s_bar, m.DOWN),
-            m.FadeIn(h_title), m.FadeIn(s_title),
-            m.FadeIn(h_val), m.FadeIn(s_val),
-            m.FadeIn(h_sub), m.FadeIn(s_sub),
-        )
-        self.play(
-            m.Create(m.VGroup(h_nabla, h_strike)),
-            m.FadeIn(s_grad, scale=1.3),
-        )
-
-        # Backprop arrow flowing back down through the magenta (soft) branch,
-        # placed to the right of the bar so it never collides with the labels.
-        backprop = m.CurvedArrow(
-            s_bar.get_right() + 0.4 * m.RIGHT + 1.0 * m.UP,
-            s_bar.get_right() + 0.4 * m.RIGHT + 1.0 * m.DOWN,
-            color=SOFT_MAGENTA,
-            angle=-m.TAU / 5,
-        )
-        grad_caption = m.Text(
-            "differentiable — gradients flow through",
-            font_size=26,
-            color=SOFT_MAGENTA,
-        ).next_to(s_grad, m.DOWN, buff=0.35)
-        self.play(m.Create(backprop), m.FadeIn(grad_caption))
+        self.play(m.FadeIn(mean_text3, shift=0.1 * m.DOWN), m.Create(sketch3))
