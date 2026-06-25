@@ -586,9 +586,7 @@ class Presentation(ThreeDSlide):
             m.FadeIn(m.VGroup(*[p["yticks"] for p in panels])),
             m.FadeIn(m.VGroup(*[p["vline"] for p in panels])),
         )
-        self.next_slide()
 
-        # ---- Beat 2: draw smooth curves one panel at a time, left -> right ----
         for p in panels:
             p["curve"] = self._curve(
                 p["axes"], fix_y(p["fn"]), mode="smooth",
@@ -600,7 +598,7 @@ class Presentation(ThreeDSlide):
             ),
             run_time=3.0,
         )
-        self.next_slide()
+        #self.next_slide() # TODO: Delete?
 
         # ---- Beat 3: sharpen — slide the handle to 0.01; curves track live ----
         def make_retrace(panel):
@@ -1778,7 +1776,7 @@ class Presentation(ThreeDSlide):
         # one pixel into the scene and string three candidate triangles along it
         # -- the pixel is covered by whichever lies closest.
         x_hat = np.array([1.0, 0.0, 0.0])          # plane normal (toward camera)
-        pixel = np.array([0.3, 0.2])               # a pixel on the image plane
+        pixel = np.array([0.4, 0.0])               # centre of a grid cell on the image plane
         ray_start = on_plane(pixel)
         ray_line = m.DashedLine(
             ray_start, ray_start + 4.6 * x_hat,
