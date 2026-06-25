@@ -162,17 +162,16 @@ class Presentation(ThreeDSlide):
         # Tiny attribution footer pinned to the lower-left corner of every
         # slide. Added to the canvas so the per-slide wipe never removes it, and
         # self.add'ed so it shows from the very first (title) slide.
-        self.footer = (
-            m.Text(
-                "Softjax & SoftTorch: Empowering Automatic Differentiation "
-                "Libraries with Informative Gradients | "
+        self.footer = m.Text(
+                "Softjax & SoftTorch: Empowering Autodiff "
+                "with Informative Gradients | "
                 "rene.geist@uni-tuebingen.de",
-                font_size=12,
+                font_size=40,
                 color=m.GREY_D,
                 font="Monospace",
-            )
-            .to_corner(m.DL, buff=0.2)
+            
         )
+        (self.footer.scale(0.25)).to_corner(m.DL, buff=0.2)
 
         self.add_to_canvas(
             slide_number=self.slide_number,
@@ -603,7 +602,7 @@ class Presentation(ThreeDSlide):
             m.FadeIn(m.VGroup(*[p["yticks"] for p in panels])),
             m.FadeIn(m.VGroup(*[p["vline"] for p in panels])),
         )
-        self.next_slide()
+        #self.next_slide()
 
         # ---- Beat 2: draw smooth curves one panel at a time, left -> right ----
         for p in panels:
