@@ -255,16 +255,16 @@ class Presentation(ThreeDSlide):
         # Logos — SVGMobject for vector, ImageMobject for raster.
         # ImageMobjects are not VMobjects so the outer container is m.Group.
         icml_logo = (
-            m.SVGMobject("images/logos/ICML_logo_2026.svg", height=0.9)
+            m.SVGMobject("images/logos/ICML_logo_2026.svg", height=1.15)
             .to_corner(m.UR, buff=0.3)
         )
         ut_logo = (
             m.ImageMobject("images/logos/UT_Logo_hires.png")
-            .set_height(0.7)
+            .set_height(0.9)
         )
         mpi_logo = (
             m.ImageMobject("images/logos/MPG_IS_Logo_RGB_grey_dark-ENG.png")
-            .set_height(0.7)
+            .set_height(0.9)
         )
         inst_logos = (
             m.Group(ut_logo, mpi_logo)
@@ -495,7 +495,7 @@ class Presentation(ThreeDSlide):
     def comparisons_and_logic(self):
         self.new_clean_slide("Fuzzy logic")
         smooth_color = SOFT_MODES[0][1]
-        tau = m.ValueTracker(0.01)
+        tau = m.ValueTracker(0.1)
 
         # Binary comparisons f(x, y): we fix the threshold y and sweep x, so a
         # single 1-D curve goes through the same unified `_curve` code path.
@@ -602,7 +602,7 @@ class Presentation(ThreeDSlide):
         )
         self.next_slide()
 
-        # ---- Beat 3: soften — slide the handle to 0.5; curves track live ----
+        # ---- Beat 3: sharpen — slide the handle to 0.01; curves track live ----
         def make_retrace(panel):
             def _retrace(mob):
                 mob.become(
@@ -615,7 +615,7 @@ class Presentation(ThreeDSlide):
 
         for p in panels:
             p["curve"].add_updater(make_retrace(p))
-        self.play(tau.animate.set_value(0.1), run_time=2.5, rate_func=m.linear)
+        self.play(tau.animate.set_value(0.01), run_time=2.5, rate_func=m.linear)
         for p in panels:
             p["curve"].clear_updaters()
         self.next_slide()
