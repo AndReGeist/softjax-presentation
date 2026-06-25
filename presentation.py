@@ -190,6 +190,13 @@ class Presentation(ThreeDSlide):
                 self._next_slide_title_animation(title),
             )
 
+        # 3D slides tilt the camera; restore the default flat orientation so a
+        # following 2D slide is not viewed from the previous slide's angle.
+        # The screen is empty here (old content wiped, new content not yet
+        # added), so the reset is invisible. 3D slides re-set their own
+        # orientation right after calling new_clean_slide.
+        self.set_camera_orientation(phi=0, theta=-90 * m.DEGREES)
+
     # ------------------------------------------------------------------ #
     # Scene methods
     # ------------------------------------------------------------------ #
@@ -200,8 +207,6 @@ class Presentation(ThreeDSlide):
         self.next_slide()
         self.differentiable_rendering()
         self.next_slide()
-        self.intro()
-        self.next_slide()
         self.heaviside_and_bools()
         self.next_slide()
         self.comparisons_and_logic()
@@ -210,13 +215,13 @@ class Presentation(ThreeDSlide):
         self.next_slide()
         self.softsort()
         self.next_slide()
-        self.relu()
-        self.next_slide()
         self.library_overview()
         self.next_slide()
         self.sorting_benchmark()
         self.next_slide()
         self.straight_through()
+        self.next_slide()
+        self.relu()
         self.next_slide()
         self.thanks()
         self.next_slide()
@@ -270,9 +275,6 @@ class Presentation(ThreeDSlide):
         self.play(
             m.FadeIn(m.Group(title_group, icml_logo, inst_logos), shift=0.3 * m.UP)
         )
-
-    def intro(self):
-        pass
 
     # ------------------------------------------------------------------ #
     # Unified plotting of SoftJAX elementwise operators
@@ -372,7 +374,7 @@ class Presentation(ThreeDSlide):
 
     def heaviside_and_bools(self):
         self.new_clean_slide("Softening")
-        tau = m.ValueTracker(0.1)
+        tau = m.ValueTracker(0.3)
         smooth_color = SOFT_MODES[0][1]
 
         # ---- Top row: heaviside formula (left) + heaviside plot (right) ----
@@ -440,7 +442,7 @@ class Presentation(ThreeDSlide):
         formula_s = m.MathTex(
             r"H_\tau(x)=\dfrac{1}{1+e^{-x/\tau}}", font_size=42
         ).move_to(formula_h)
-        self.play(m.FadeIn(slider, shift=0.2 * m.UP))
+        self.play(m.FadeIn(slider, shift=0.2 * m.DOWN))
         self.play(
             m.Create(heav_smooth),
             m.ReplacementTransform(formula_h, formula_s),
@@ -901,6 +903,39 @@ class Presentation(ThreeDSlide):
             if i < len(image_files) - 1:
                 self.next_slide()
 
+        # On the final build step, dim the second blue matrix (the "Axiswise
+        # unit simplex projection" block) under a slightly translucent white
+        # box. Bounds are pixel coordinates in the 1920x925 source image,
+        # mapped onto the displayed image's bounding box so they stay correct
+        # regardless of frame config.
+        px0, px1, py0, py1 = 895, 1450, 326, 878
+        img_w, img_h = 1926, 931
+        left, right = prev.get_left()[0], prev.get_right()[0]
+        top, bottom = prev.get_top()[1], prev.get_bottom()[1]
+        mx0 = left + px0 / img_w * (right - left)
+        mx1 = left + px1 / img_w * (right - left)
+        my0 = top - py0 / img_h * (top - bottom)
+        my1 = top - py1 / img_h * (top - bottom)
+        cover = m.Rectangle(
+            width=mx1 - mx0, height=my0 - my1,
+            stroke_width=0, fill_color=m.WHITE, fill_opacity=0.85,
+        ).move_to([(mx0 + mx1) / 2, (my0 + my1) / 2, 0])
+
+        # Overlay the soft-sort identity on the box: argsort -> P*_tau.
+        cover_arrow = m.Arrow(
+            m.UP * 0.18, m.DOWN * 0.18, buff=0.0,
+            color=m.BLACK, stroke_width=4,
+            max_tip_length_to_length_ratio=0.4, tip_length=0.15,
+        )
+        cover_label = m.VGroup(
+            m.Text("argsort", font_size=30, color=m.BLACK),
+            cover_arrow,
+            m.MathTex(r"P_{\tau}^*", font_size=50, color=m.BLACK),
+        ).arrange(m.DOWN, buff=0.18).move_to(cover.get_center())
+
+        self.next_slide()
+        self.play(m.FadeIn(cover), m.FadeIn(cover_label))
+
     def relu(self):
         """Two principled derivations of a soft ReLU (gating vs. integration),
         then an arrow tying the gating construction to the soft-sort identity
@@ -964,7 +999,7 @@ class Presentation(ThreeDSlide):
         # ---------------- Sort identity below, linked by a vertical arrow ----
         sort_eq = m.MathTex(
             r"\sort_\tau(\mathbf{x}) \coloneqq \argsort_{\tau}(\mathbf{x})\, \mathbf{x}"
-            r" = P^\star_\tau(\mathbf{x})\, \mathbf{x}.",
+            r" = P^\star_\tau(\mathbf{x})\, \mathbf{x}",
             font_size=30,
         )
 
@@ -1000,9 +1035,13 @@ class Presentation(ThreeDSlide):
         question = m.Text("?", weight=m.BOLD, font_size=72, color=m.BLACK)
         question.next_to(integ_arrow, m.DOWN, buff=0.18).set_x(integ_plot.get_x())
 
-        # Beat 1: the framing statement + the two derivations side by side.
+        # Beat 1: the framing statement, then the gating derivation alone.
         self.play(m.FadeIn(header))
-        self.play(m.FadeIn(gating), m.FadeIn(integ))
+        self.play(m.FadeIn(gating))
+        self.next_slide()
+
+        # Beat 2: reveal the integration derivation alongside it.
+        self.play(m.FadeIn(integ))
         self.next_slide()
 
         # Beat 2: connect the gating construction to the soft-sort identity.
@@ -1595,7 +1634,7 @@ class Presentation(ThreeDSlide):
             m.Text("Distance-based:", font_size=24, color=m.BLACK),
             code_block(
                 "d_min = jnp.min(jnp.array([d1, d2, d3]))",
-                "inside = ( min_dist > 0.0 )",
+                "inside = ( d_min > 0.0 )",
             ),
         ).arrange(m.DOWN, buff=0.2, aligned_edge=m.LEFT)
         area_section = m.VGroup(

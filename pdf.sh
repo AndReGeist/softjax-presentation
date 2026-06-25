@@ -1,0 +1,1 @@
+uv run manim-slides convert --to=pdf -cresolution=300 Presentation presentation.pdf
