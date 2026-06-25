@@ -159,10 +159,27 @@ class Presentation(ThreeDSlide):
             m.Text("", font_size=TITLE_FONT_SIZE)
             .to_corner(m.UL)
         )
+        # Tiny attribution footer pinned to the lower-left corner of every
+        # slide. Added to the canvas so the per-slide wipe never removes it, and
+        # self.add'ed so it shows from the very first (title) slide.
+        self.footer = (
+            m.Text(
+                "Softjax & SoftTorch: Empowering Automatic Differentiation "
+                "Libraries with Informative Gradients | "
+                "rene.geist@uni-tuebingen.de",
+                font_size=12,
+                color=m.GREY_D,
+                font="Monospace",
+            )
+            .to_corner(m.DL, buff=0.2)
+        )
+
         self.add_to_canvas(
             slide_number=self.slide_number,
             slide_title=self.slide_title,
+            footer=self.footer,
         )
+        self.add(self.footer)
 
     def _next_slide_number_animation(self):
         return self.slide_number.animate(run_time=0.3).increment_value(1)
@@ -256,7 +273,7 @@ class Presentation(ThreeDSlide):
         # ImageMobjects are not VMobjects so the outer container is m.Group.
         icml_logo = (
             m.SVGMobject("images/logos/ICML_logo_2026.svg", height=1.15)
-            .to_corner(m.UR, buff=0.3)
+            .to_corner(m.UR, buff=0.25)
         )
         ut_logo = (
             m.ImageMobject("images/logos/UT_Logo_hires.png")
@@ -586,7 +603,9 @@ class Presentation(ThreeDSlide):
             m.FadeIn(m.VGroup(*[p["yticks"] for p in panels])),
             m.FadeIn(m.VGroup(*[p["vline"] for p in panels])),
         )
+        self.next_slide()
 
+        # ---- Beat 2: draw smooth curves one panel at a time, left -> right ----
         for p in panels:
             p["curve"] = self._curve(
                 p["axes"], fix_y(p["fn"]), mode="smooth",
@@ -598,7 +617,7 @@ class Presentation(ThreeDSlide):
             ),
             run_time=3.0,
         )
-        #self.next_slide() # TODO: Delete?
+        self.next_slide()
 
         # ---- Beat 3: sharpen — slide the handle to 0.01; curves track live ----
         def make_retrace(panel):
@@ -1224,7 +1243,7 @@ class Presentation(ThreeDSlide):
         # the canvas; pin them (and the left-hand text) to the frame so the
         # camera pan never tilts them.
         self.set_camera_orientation(phi=90 * m.DEGREES, theta=-90 * m.DEGREES)
-        self.add_fixed_in_frame_mobjects(self.slide_title, self.slide_number)
+        self.add_fixed_in_frame_mobjects(self.slide_title, self.slide_number, self.footer)
 
         # Section header in the upper-left corner (replaces the slide title).
         header = m.Text(
@@ -1515,7 +1534,7 @@ class Presentation(ThreeDSlide):
         the (non-)differentiable coverage that SoftJAX makes smooth."""
         self.new_clean_slide("Example: Differentiable rendering")
         self.set_camera_orientation(phi=72 * m.DEGREES, theta=-48 * m.DEGREES)
-        self.add_fixed_in_frame_mobjects(self.slide_title, self.slide_number)
+        self.add_fixed_in_frame_mobjects(self.slide_title, self.slide_number, self.footer)
 
         # The camera plane is the vertical plane x = X_PLANE (to the left); the
         # 3D triangle floats to the right and is projected straight along -x.
@@ -1820,18 +1839,21 @@ class Presentation(ThreeDSlide):
         )
 
     def thanks(self):
-        """Closing slide: a centred thank-you above a closing image."""
+        """Closing slide: QR codes (SoftTorch / SoftJAX docs) above a closing
+        image of the authors."""
         # Wipe the 3D scene, then return the camera to a flat, front-on view so
         # the 2D content renders without perspective distortion.
         self.new_clean_slide("")
         self.move_camera(phi=0, theta=-90 * m.DEGREES, run_time=1.0)
 
-        thanks_text = m.Text(
-            "Thanks for all the fish.", weight=m.BOLD, font_size=TITLE_FONT_SIZE,
-        ).to_edge(m.UP, buff=1.2)
-
         image = m.ImageMobject("images/thanks.png")
-        image.width = min(11.0, m.config.frame_width - 1.5)
-        image.next_to(thanks_text, m.DOWN, buff=0.7)
+        image.width = 8.5
 
-        self.play(m.FadeIn(thanks_text), m.FadeIn(image))
+        qrcodes = m.ImageMobject("images/qrcodes.png")
+        qrcodes.height = 3.0
+
+        # QR codes on top, author image below; lift the stack toward the top so
+        # the gap above the QR codes stays small.
+        stack = m.Group(qrcodes, image).arrange(m.DOWN, buff=0.5).to_edge(m.UP, buff=0.5)
+
+        self.play(m.FadeIn(qrcodes), m.FadeIn(image))
