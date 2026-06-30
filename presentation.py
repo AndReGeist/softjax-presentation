@@ -20,6 +20,55 @@ from plotly.subplots import make_subplots
 
 P = ParamSpec("P")
 
+
+# Manim CE's ``Text`` has uneven letter spacing at small font sizes: Pango
+# computes glyph advances at the *pixel size* of the requested ``font_size``,
+# so below ~28px the rounding makes the spacing visibly irregular
+# (ManimCommunity/manim#2844). The robust workaround from that thread is to
+# lay the text out at a large, safe font size -- where the kerning is clean --
+# and then scale the resulting vector glyphs down to the requested size.
+#
+# We also disable ligatures by default: this is all English prose, so we want
+# each character as its own evenly-spaced glyph rather than merged pairs
+# ("ti", "fi", "fl"); see https://github.com/3b1b/manim/issues/1405.
+#
+# Rebinding ``m.Text`` makes every ``m.Text(...)`` call in this module pick up
+# both fixes; callers can still override either keyword explicitly.
+_KERNING_SAFE_FONT_SIZE = 48.0
+
+
+class _Text(m.Text):
+    def __init__(
+        self,
+        *args,
+        font_size: float = _KERNING_SAFE_FONT_SIZE,
+        disable_ligatures: bool = True,
+        **kwargs,
+    ):
+        # When the text is sized by an explicit height/width, ``font_size`` is
+        # not the controlling dimension, so the scale trick doesn't apply --
+        # just render directly. Likewise for text already at/above the safe
+        # size, which Pango kerns cleanly.
+        sized_by_box = (
+            kwargs.get("height") is not None or kwargs.get("width") is not None
+        )
+        if sized_by_box or font_size >= _KERNING_SAFE_FONT_SIZE:
+            super().__init__(
+                *args, font_size=font_size,
+                disable_ligatures=disable_ligatures, **kwargs,
+            )
+            return
+        # Lay out at the safe size for clean kerning, then scale the vector
+        # glyphs down to the requested visual size.
+        super().__init__(
+            *args, font_size=_KERNING_SAFE_FONT_SIZE,
+            disable_ligatures=disable_ligatures, **kwargs,
+        )
+        self.scale(font_size / _KERNING_SAFE_FONT_SIZE)
+
+
+m.Text = _Text
+
 # Constants
 
 TITLE_FONT_SIZE = 48
