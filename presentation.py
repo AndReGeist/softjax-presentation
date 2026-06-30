@@ -1001,7 +1001,7 @@ class Presentation(ThreeDSlide):
         # ---------------- Right column: Integration ----------------
         integ_label = m.Text("Integration", weight=m.BOLD, font_size=26, color=m.BLACK)
         integ_eq = m.MathTex(
-            r"\mathrm{relu}_\tau(x) \coloneqq \int_0^x \heaviside_{\tau}(t)\,\mathrm{d} t",
+            r"\mathrm{relu}_\tau(x) \coloneqq \int_{-\infty}^x \heaviside_{\tau}(t)\,\mathrm{d} t",
             font_size=30,
         )
         integ_plot = relu_plot(gated=False)
