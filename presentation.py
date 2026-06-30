@@ -759,7 +759,7 @@ class Presentation(ThreeDSlide):
         sections = [
             (
                 "Standard indexing",
-                "x = jnp.array([0.1, 0.4, 0.8])\n"
+                "x = jnp.array([0.1, 0.4, 0.5])\n"
                 "idx = jnp.argmax(x)\n"
                 "y = x[idx]",
             ),
@@ -802,7 +802,7 @@ class Presentation(ThreeDSlide):
         # ---- Section 1 illustration: plain index / value readout ----
         arrow1 = result_arrow(blocks[0][1])
         result1 = m.Text(
-            "Index: 2, Value: 0.8", font_size=28, color=m.BLACK
+            "Index: 2, Value: 0.5", font_size=28, color=m.BLACK
         ).next_to(arrow1, m.RIGHT, buff=0.3)
 
         # ---- Section 2 illustration: one-hot bar plot . column vector = 0.8 ----
@@ -836,10 +836,10 @@ class Presentation(ThreeDSlide):
         bars = one_hot_bars([0, 0, 1])
         dot = m.MathTex(r"\cdot", font_size=72, color=m.BLACK)
         colvec = m.Matrix(
-            [["0.1"], ["0.4"], ["0.8"]], bracket_h_buff=0.12
+            [["0.1"], ["0.4"], ["0.5"]], bracket_h_buff=0.12
         ).scale(0.55).set_color(m.BLACK)
         eq = m.MathTex("=", font_size=56, color=m.BLACK)
-        val = m.MathTex("0.8", font_size=44, color=m.BLACK)
+        val = m.MathTex("0.5", font_size=44, color=m.BLACK)
         illus2 = m.VGroup(bars, dot, colvec, eq, val).arrange(m.RIGHT, buff=0.32)
         arrow2 = result_arrow(blocks[1][1])
         illus2.next_to(arrow2, m.RIGHT, buff=0.3)
@@ -863,13 +863,13 @@ class Presentation(ThreeDSlide):
         )
 
         # ---- Section 3 illustration: soft probabilities . column vector = 0.78 ----
-        bars3 = one_hot_bars([0.004, 0.042, 0.953])
+        bars3 = one_hot_bars([0.004, 0.213, 0.783])
         dot3 = m.MathTex(r"\cdot", font_size=72, color=m.BLACK)
         colvec3 = m.Matrix(
-            [["0.1"], ["0.4"], ["0.8"]], bracket_h_buff=0.12
+            [["0.1"], ["0.4"], ["0.5"]], bracket_h_buff=0.12
         ).scale(0.55).set_color(m.BLACK)
         eq3 = m.MathTex("=", font_size=56, color=m.BLACK)
-        val3 = m.MathTex("0.78", font_size=44, color=m.BLACK)
+        val3 = m.MathTex("0.48", font_size=44, color=m.BLACK)
         illus3 = m.VGroup(bars3, dot3, colvec3, eq3, val3).arrange(m.RIGHT, buff=0.32)
         arrow3 = result_arrow(blocks[2][1])
         illus3.next_to(arrow3, m.RIGHT, buff=0.3)
