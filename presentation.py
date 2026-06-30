@@ -116,7 +116,12 @@ m.MathTex.set_default(
     color=m.BLACK, tex_template=tex_template, font_size=CONTENT_FONT_SIZE
 )
 m.Tex.set_default(color=m.BLACK, tex_template=tex_template, font_size=CONTENT_FONT_SIZE)
-m.Text.set_default(color=m.BLACK, font_size=CONTENT_FONT_SIZE)
+# Set the black default on Manim's *base* ``Text`` class, not on the ``_Text``
+# subclass that ``m.Text`` now points at. ``Paragraph`` (and therefore the
+# ``Code`` mobject) instantiates the base ``Text`` directly, bypassing ``_Text``;
+# applying the default to the subclass alone would leave ``Code``'s uncolored
+# tokens at Manim's global white default -- invisible on the light code box.
+m.Text.__mro__[1].set_default(color=m.BLACK, font_size=CONTENT_FONT_SIZE)
 
 
 def cleanup_figure(
@@ -759,12 +764,12 @@ class Presentation(ThreeDSlide):
                 "y = x[idx]",
             ),
             (
-                'SoftJax, mode="hard"',
+                'mode = "hard"',
                 'hard_idx = sj.argmax(x, mode="hard")\n'
                 "y = sj.dynamic_index_in_dim(x, hard_idx)",
             ),
             (
-                'SoftJax, mode="soft"',
+                'mode = "soft"',
                 "soft_idx = sj.argmax(x)\n"
                 "y = sj.dynamic_index_in_dim(x, soft_idx)",
             ),
