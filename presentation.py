@@ -300,7 +300,7 @@ class Presentation(ThreeDSlide):
             "A. René Geist - July 2026", slant=m.ITALIC, font_size=CONTENT_FONT_SIZE-5
         )
         authors = m.Text(
-            "Authors:   Anselm Paulus*   A. René Geist *   Vít Musil   Sebastian Hoffmann   Georg Martius",
+            "Authors:   Anselm Paulus*   A. René Geist*   Vít Musil   Sebastian Hoffmann   Georg Martius",
             font_size=CONTENT_FONT_SIZE-15,
         )
         credits = m.VGroup(presenter, authors).arrange(m.DOWN, buff=0.25)
@@ -1379,6 +1379,15 @@ class Presentation(ThreeDSlide):
             font="Monospace", font_size=24, color=m.BLACK,
             t2c={"sj.st": SOFT_MODES[0][1]},
         ).move_to([3.4, 1.95, 0])
+        # Standalone "y * " prefix, aligned to where it sits inside
+        # `label_saddle`. Beat 3 *inserts* this in front of the first equation:
+        # the existing `sj.st(sj.relu)(x)` slides right to open a gap and the
+        # prefix slides in from the left to fill it -- an illustrative build of
+        # the product, instead of cross-fading two separate texts.
+        prefix_label = m.Text(
+            "y * ", font="Monospace", font_size=24, color=m.BLACK,
+        ).align_to(label_saddle, m.LEFT)
+        prefix_label.set_y(label_saddle.get_y())
         # The last beat's title is a code box (replaces the text title) showing
         # the straight-through of the whole product.
         code_text = m.Paragraph(
@@ -1406,11 +1415,11 @@ class Presentation(ThreeDSlide):
 
         self.add_fixed_in_frame_mobjects(
             header, trick, product_rule, pitfall_note, legend_2d, label_relu_st,
-            label_saddle, code_box, grad_legend,
+            label_saddle, prefix_label, code_box, grad_legend,
         )
         self.remove(
             header, trick, product_rule, pitfall_note, legend_2d, label_relu_st,
-            label_saddle, code_box, grad_legend,
+            label_saddle, prefix_label, code_box, grad_legend,
         )
 
         # ---------------------- Right: the 3D surface --------------------
@@ -1544,12 +1553,20 @@ class Presentation(ThreeDSlide):
 
         # Beat 3: swap relu_st(x) for the full y * sj.st(relu)(x) surface and
         # its gradient field, and state the product rule.
+        # Slide the existing `sj.st(sj.relu)(x)` right by exactly the width its
+        # right edge must travel to meet `label_saddle`'s, opening a gap on the
+        # left into which the "y * " prefix slides as it fades in.
+        body_dx = label_saddle.get_right()[0] - label_relu_st.get_right()[0]
         self.play(
             m.ReplacementTransform(relu_st_surface, saddle_surface),
             m.ReplacementTransform(relu_st_field, saddle_field),
-            m.FadeOut(label_relu_st),
-            m.FadeIn(label_saddle),
+            label_relu_st.animate.shift(body_dx * m.RIGHT),
+            m.FadeIn(prefix_label, shift=0.3 * m.RIGHT),
         )
+        # The shifted label + prefix now reproduce `label_saddle` exactly; swap
+        # to the single mobject so Beat 4 can fade it out as one unit.
+        self.remove(label_relu_st, prefix_label)
+        self.add(label_saddle)
         self.next_slide()
         
         self.play(
