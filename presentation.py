@@ -100,24 +100,24 @@ def cleanup_figure(
     return fig
 
 
-def move_camera(
-    fig: go.Figure,
-    *,
-    elevation: int | float = 0,
-    azimuth: int | float = 0,
-    distance: int | float = 10,
-) -> go.Figure:
-    x, y, z = spherical_to_cartesian(
-        np.asarray([distance, elevation, azimuth])
-    ).tolist()
+# def move_camera(
+#     fig: go.Figure,
+#     *,
+#     elevation: int | float = 0,
+#     azimuth: int | float = 0,
+#     distance: int | float = 10,
+# ) -> go.Figure:
+#     x, y, z = spherical_to_cartesian(
+#         np.asarray([distance, elevation, azimuth])
+#     ).tolist()
 
-    camera = dict(
-        up=dict(x=0, y=0, z=1), center=dict(x=0, y=0, z=0), eye=dict(x=x, y=y, z=z)
-    )
+#     camera = dict(
+#         up=dict(x=0, y=0, z=1), center=dict(x=0, y=0, z=0), eye=dict(x=x, y=y, z=z)
+#     )
 
-    fig.update_scenes(camera=camera)
+#     fig.update_scenes(camera=camera)
 
-    return fig
+#     return fig
 
 
 def fig_to_mobject(
@@ -180,31 +180,21 @@ class Presentation(ThreeDSlide):
         )
         self.add(self.footer)
 
-    def _next_slide_number_animation(self):
-        return self.slide_number.animate(run_time=0.3).increment_value(1)
-
-    def _next_slide_title_animation(self, title: str):
-        new_title = m.Text(title, font_size=TITLE_FONT_SIZE).to_corner(m.UL)
-        return m.Transform(self.slide_title, new_title)
-
     def new_clean_slide(self, title: str, contents=None, **kwargs):
-        """Wipe current content and transition to a new section."""
+        """Switch to a new section with an instantaneous hard cut.
+
+        The old content is removed, the title and slide number update in
+        place, and any new contents are added immediately -- no wipe, fade,
+        or morph animation, so the slide change is instant.
+        """
         if self.mobjects_without_canvas:
-            self.play(
-                self._next_slide_number_animation(),
-                self._next_slide_title_animation(title),
-                self.wipe(
-                    self.mobjects_without_canvas,
-                    contents if contents else [],
-                    return_animation=True,
-                    **kwargs,
-                ),
-            )
-        else:
-            self.play(
-                self._next_slide_number_animation(),
-                self._next_slide_title_animation(title),
-            )
+            self.remove(*self.mobjects_without_canvas)
+        self.slide_number.increment_value(1)
+        self.slide_title.become(
+            m.Text(title, font_size=TITLE_FONT_SIZE).to_corner(m.UL)
+        )
+        if contents:
+            self.add(*contents)
 
         # 3D slides tilt the camera; restore the default flat orientation so a
         # following 2D slide is not viewed from the previous slide's angle.
