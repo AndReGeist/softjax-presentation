@@ -243,10 +243,10 @@ class Presentation(ThreeDSlide):
         header = m.VGroup(main, subtitle).arrange(m.DOWN, buff=0.35)
 
         presenter = m.Text(
-            "A. René Geist - June 2026, AI4PEX", slant=m.ITALIC, font_size=CONTENT_FONT_SIZE-5
+            "A. René Geist - July 2026", slant=m.ITALIC, font_size=CONTENT_FONT_SIZE-5
         )
         authors = m.Text(
-            "Authors:   Anselm Paulus*   A. René Geist*   Vít Musil   Sebastian Hoffmann   Georg Martius",
+            "Authors:   Anselm Paulus*   A. René Geist *   Vít Musil   Sebastian Hoffmann   Georg Martius",
             font_size=CONTENT_FONT_SIZE-15,
         )
         credits = m.VGroup(presenter, authors).arrange(m.DOWN, buff=0.25)
@@ -1643,22 +1643,15 @@ class Presentation(ThreeDSlide):
                 "inside = ( d_min > 0.0 )",
             ),
         ).arrange(m.DOWN, buff=0.2, aligned_edge=m.LEFT)
-        area_section = m.VGroup(
-            m.Text("Area-based:", font_size=24, color=m.BLACK),
-            code_block("inside = jnp.all( [a1 > 0.0, a2 > 0.0, a3 > 0] )"),
-        ).arrange(m.DOWN, buff=0.2, aligned_edge=m.LEFT)
-        lower = m.VGroup(dist_section, area_section).arrange(
-            m.DOWN, buff=0.45, aligned_edge=m.LEFT)
-        right_panel = m.VGroup(panel_title, lower).arrange(
+        right_panel = m.VGroup(panel_title, dist_section).arrange(
             m.DOWN, buff=0.55, aligned_edge=m.LEFT)
         if right_panel.width > 6.6:
             right_panel.scale(6.6 / right_panel.width)
         right_panel.to_edge(m.RIGHT, buff=0.5).shift(0.6 * m.UP)
-        # Fix the parts to the frame individually so they can be revealed on
-        # different beats: title + distance with the line animation, area with
-        # the signed-area animation.
-        self.add_fixed_in_frame_mobjects(panel_title, dist_section, area_section)
-        self.remove(panel_title, dist_section, area_section)
+        # Fix the parts to the frame individually so they can be revealed
+        # together with the edge-distance line animation.
+        self.add_fixed_in_frame_mobjects(panel_title, dist_section)
+        self.remove(panel_title, dist_section)
 
         # Closing caption (revealed with the final beat), under the area code.
         closest_block = m.VGroup(
@@ -1732,55 +1725,7 @@ class Presentation(ThreeDSlide):
         self.play(tracker.animate.set_value(1.0), run_time=7, rate_func=m.linear)
         self.next_slide()
 
-        # Beat 5: keep the same sweep, but now shade the signed-area
-        # (barycentric) sub-triangle of each edge with the point -- green when
-        # the area is positive, red when negative. Both ends of the path are P,
-        # so resetting the sweep doesn't make the point jump.
-        # Draw the shaded areas a hair toward the camera (+x is the plane normal
-        # facing the viewer) so they sit in front of the projected triangle;
-        # stagger per edge so overlapping areas don't z-fight.
-        def front(point3d, k):
-            return point3d + np.array([0.05 + 0.015 * k, 0.0, 0.0])
-
-        def make_point_front():
-            return m.Dot3D(
-                on_plane(pos(tracker.get_value())) + np.array([0.12, 0.0, 0.0]),
-                radius=0.07, color=m.BLACK)
-
-        def make_areas():
-            p = pos(tracker.get_value())
-            # Shade only one edge's signed-area sub-triangle (the upper-right
-            # edge b-c, which the sweep crosses, so the colour still flips).
-            A, B = b, c
-            # cross2(B-A, p-A) is twice the signed area of triangle (A,B,p).
-            col = VALID_COLOR if cross2(B - A, p - A) > 0 else INVALID_COLOR
-            return m.VGroup(m.Polygon(
-                front(on_plane(A), 0), front(on_plane(B), 0), front(on_plane(p), 0),
-                stroke_color=col, stroke_width=1.5,
-                fill_color=col, fill_opacity=0.5,
-            ))
-
-        # Reset the sweep and cross-fade the distance lines into the shaded
-        # signed areas (drop the updaters first so FadeOut can take effect).
-        tracker.set_value(0.0)
-        dyn_lines.clear_updaters()
-        dyn_point.clear_updaters()
-        static_areas = make_areas()
-        static_pt = make_point_front()
-        self.play(
-            m.FadeOut(dyn_lines), m.FadeOut(dyn_point),
-            m.FadeIn(static_areas), m.FadeIn(static_pt),
-            m.FadeIn(area_section),
-        )
-        # Hand over to the live area mobjects (identical at s=0) and sweep again.
-        dyn_areas = m.always_redraw(make_areas)
-        dyn_point2 = m.always_redraw(make_point_front)
-        self.remove(static_areas, static_pt)
-        self.add(dyn_areas, dyn_point2)
-        self.play(tracker.animate.set_value(1.0), run_time=7, rate_func=m.linear)
-        self.next_slide()
-
-        # Beat 6: fade out both triangles; cast a single ray orthogonally from
+        # Beat 5: fade out both triangles; cast a single ray orthogonally from
         # one pixel into the scene and string three candidate triangles along it
         # -- the pixel is covered by whichever lies closest.
         x_hat = np.array([1.0, 0.0, 0.0])          # plane normal (toward camera)
@@ -1813,13 +1758,13 @@ class Presentation(ThreeDSlide):
                 fill_color=color, fill_opacity=0.3,
             ))
 
-        # Drop the area updaters so the fade-out takes effect.
-        dyn_areas.clear_updaters()
-        dyn_point2.clear_updaters()
+        # Drop the edge-distance updaters so the fade-out takes effect.
+        dyn_lines.clear_updaters()
+        dyn_point.clear_updaters()
         self.play(
             m.FadeOut(tri3d), m.FadeOut(dots3d),
             m.FadeOut(tri2d), m.FadeOut(dots2d), m.FadeOut(proj_rays),
-            m.FadeOut(dyn_areas), m.FadeOut(dyn_point2),
+            m.FadeOut(dyn_lines), m.FadeOut(dyn_point),
         )
         self.play(m.FadeIn(pixel_dot), m.Create(ray_line))
         self.play(
