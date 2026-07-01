@@ -277,8 +277,8 @@ class Presentation(ThreeDSlide):
         self.next_slide()
         self.library_overview()
         self.next_slide()
-        self.sorting_benchmark()
-        self.next_slide()
+        #self.sorting_benchmark()
+        #self.next_slide()
         self.straight_through()
         self.next_slide()
         self.relu()
@@ -949,12 +949,14 @@ class Presentation(ThreeDSlide):
         ]
         # Each image is a full 16:9 build step; fit it below the slide title
         # and let successive steps replace one another in ascending order.
-        target_h = m.config.frame_height - 1.2
+        # Slightly smaller than full height, lifted clear of the bottom edge so
+        # the slide footer stays visible underneath.
+        target_h = m.config.frame_height - 1.7
         prev = None
         for i, path in enumerate(image_files):
             img = m.ImageMobject(path)
             img.height = target_h
-            img.to_edge(m.DOWN, buff=0.15)
+            img.to_edge(m.DOWN, buff=0.55)
             if prev is None:
                 self.play(m.FadeIn(img))
             else:
@@ -988,7 +990,7 @@ class Presentation(ThreeDSlide):
             max_tip_length_to_length_ratio=0.4, tip_length=0.15,
         )
         cover_label = m.VGroup(
-            m.Text("argsort", font_size=30, color=m.BLACK),
+            m.MathTex(r"\mathrm{argsort}_{\tau}", font_size=30, color=m.BLACK),
             cover_arrow,
             m.MathTex(r"P_{\tau}^*", font_size=50, color=m.BLACK),
         ).arrange(m.DOWN, buff=0.18).move_to(cover.get_center())
@@ -1255,23 +1257,53 @@ class Presentation(ThreeDSlide):
         )
         self.play(m.FadeIn(elem_note, shift=0.15 * m.UP))
         self.play(m.GrowArrow(elem_arrow))
+        self.next_slide()
 
-    def sorting_benchmark(self):
-        """Untitled slide: bold 'Sorting' heading above the sort benchmark."""
-        self.new_clean_slide("")
+        # --- Annotation 3: arrow from a note up to the Methods column ---
+        # Mirror Annotation 2: sit the note in the bottom whitespace under the
+        # rightmost (Modes / Methods) column and point an arrow up to the bottom
+        # of that column -- not at a cell in the middle of the table.
+        method_note = m.Text(
+            "Appendix: Benchmarks for axis-wise operators.",
+            font_size=18, color=m.BLACK, line_spacing=0.85,
+        )
+        method_note.set_y(elem_note.get_y())
+        method_note.set_x(modes_col.get_x())
+        # Keep the note on screen: clamp its right edge to a safe margin.
+        right_margin = m.config.frame_width / 2 - 0.3
+        if method_note.get_right()[0] > right_margin:
+            method_note.shift((right_margin - method_note.get_right()[0]) * m.RIGHT)
+        # Fixed-length (0.6) arrow pointing up to just below the bottom rule,
+        # matching Annotations 1 & 2. The tip sits under the Methods column at
+        # the note's (possibly clamped) x, so the arrow stays vertical and
+        # centred under the note.
+        meth_end = np.array(
+            [method_note.get_x(), table.get_bottom()[1] - 0.14, 0.0]
+        )
+        method_arrow = m.Arrow(
+            meth_end + 0.6 * m.DOWN, meth_end,
+            color=m.BLACK, buff=0.0, stroke_width=3,
+            max_tip_length_to_length_ratio=0.35,
+        )
+        self.play(m.FadeIn(method_note, shift=0.15 * m.UP))
+        self.play(m.GrowArrow(method_arrow))
 
-        heading = m.Text("Sorting", weight=m.BOLD, font_size=24, color=m.BLACK)
-        plot = m.ImageMobject("images/benchmark_sort_smooth.png")
+    # def sorting_benchmark(self):
+    #     """Untitled slide: bold 'Sorting' heading above the sort benchmark."""
+    #     self.new_clean_slide("")
 
-        group = m.Group(heading, plot).arrange(m.DOWN, buff=0.2)
-        max_h = m.config.frame_height - 0.5
-        max_w = m.config.frame_width - 0.5
-        # Scale up (or down) to fill the frame as much as possible.
-        group.scale(min(max_h / group.height, max_w / group.width))
-        group.move_to(0.35 * m.DOWN)
+    #     heading = m.Text("Sorting", weight=m.BOLD, font_size=24, color=m.BLACK)
+    #     plot = m.ImageMobject("images/benchmark_sort_smooth.png", height=3.5)
 
-        self.play(m.FadeIn(heading, shift=0.2 * m.DOWN))
-        self.play(m.FadeIn(plot, shift=0.2 * m.UP))
+    #     group = m.Group(heading, plot).arrange(m.DOWN, buff=0.2)
+    #     max_h = m.config.frame_height - 0.5
+    #     max_w = m.config.frame_width - 0.5
+    #     # Scale up (or down) to fill the frame as much as possible.
+    #     group.scale(min(max_h / group.height, max_w / group.width))
+    #     group.move_to(0.35 * m.DOWN)
+
+    #     self.play(m.FadeIn(heading, shift=0.2 * m.DOWN))
+    #     self.play(m.FadeIn(plot, shift=0.2 * m.UP))
 
     def straight_through(self):
         """Straight-through estimation: the trick (left) + a plot (right). The
